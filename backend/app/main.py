@@ -6,13 +6,34 @@ import os
 
 from sqlalchemy import select, text
 from app.core.config import settings
-from app.core.database import engine, Base, init_redis, close_redis
+from app.core.database import engine, Base, init_redis, close_redis, get_redis
 from app.core.migrations import ensure_schema, run_migrations
 from app.tasks.scheduler import start_scheduler, stop_scheduler
 
 from app.routers import ai_admin, site_contents, group_activities, qa, battles, media, minigames, stats, auth, users, posts, comments, polls, chat, admin, feedback, reactions, rules, ops, achievements, search, sensitive_words_admin, friend_links, stickers, meta
 
 import app.models # 确保所有 ORM 模型类被加载注册
+import secrets
+import logging
+
+_startup_log = logging.getLogger("app.startup")
+
+# 安全兜底：JWT 密钥必须由环境提供，避免源码里的默认值被直接拿去部署。
+if not settings.JWT_SECRET_KEY:
+    if settings.ENVIRONMENT == "production":
+        raise RuntimeError(
+            "JWT_SECRET_KEY 未配置。请在 .env 中设置：JWT_SECRET_KEY=$(openssl rand -hex 32)"
+        )
+    settings.JWT_SECRET_KEY = secrets.token_urlsafe(48)
+    _startup_log.warning("JWT_SECRET_KEY 未配置，已生成进程级临时密钥；重启后现有登录态会失效")
+
+# 初始超管口令：未配置时随机生成（同一进程内保持不变，日志只打印一次）
+_GENERATED_ADMIN_PASSWORD = "" if settings.BOOTSTRAP_ADMIN_PASSWORD else secrets.token_urlsafe(9)
+
+
+def _bootstrap_admin_password() -> str:
+    return (settings.BOOTSTRAP_ADMIN_PASSWORD or _GENERATED_ADMIN_PASSWORD).strip()
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

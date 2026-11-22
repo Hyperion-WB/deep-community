@@ -216,6 +216,10 @@ async def checkin_makeup(
     if registered and target < registered:
         raise HTTPException(status_code=400, detail="只能补签注册之后的日期")
 
+    # 串行化同一用户的补签请求：否则两个不同日期并发补签会都读到「剩 1 张」，
+    # 一张卡被用出两次（双花）。锁住用户行，后到的请求等前一个提交后重新计算额度。
+    await db.execute(select(User.id).where(User.id == user.id).with_for_update())
+
     exists = (await db.execute(
         select(Checkin.id).where(Checkin.user_id == user.id, Checkin.checkin_date == target)
     )).scalar_one_or_none()
