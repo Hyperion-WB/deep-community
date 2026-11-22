@@ -1,0 +1,14 @@
+﻿<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <!-- Apple 连续圆角 Squircle 外框 -->
+  <rect width="100" height="100" rx="28" fill="#111317"/>
+  <!-- 极细微光边缘 -->
+  <rect x="0.5" y="0.5" width="99" height="99" rx="27.5" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>
+  <!-- 极简几何 C: 纯白微弧环形，极客纯粹感 -->
+  <path d="M68 35C62.5 28.5 54.5 25 45 25C29.5 25 18 36.5 18 50C18 63.5 29.5 75 45 75C54.5 75 62.5 71.5 68 65" 
+        stroke="#FFFFFF" 
+        stroke-width="10" 
+        stroke-linecap="round" 
+        stroke-linejoin="round"/>
+  <!-- 核心极点 -->
+  <circle cx="58" cy="50" r="4.5" fill="#FFFFFF"/>
+</svg>

@@ -1,0 +1,136 @@
+# ==============================================================================
+# 极客社区 (Liaotian Community) - 4GB 单机专用部署（本项目独占整机资源）
+# 物理内存总限额: 64MB (Nginx) + 768MB (Backend) + 768MB (PostgreSQL) + 96MB (Redis) ≈ 1.7GB
+# 生产机 4GB、Swap 4GB：约 1.7GB 上限，剩余留给 OS 与页缓存
+# 溢出部分完全流入 Linux Host Swap 空间运行
+# ==============================================================================
+
+services:
+  nginx:
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # 直接使用官方 nginx 镜像：静态产物与配置都是宿主机挂载，
+    # 无需在部署时重复构建前端镜像（省一次 npm 构建，降低首部署 OOM 风险）。
+    image: nginx:1.25-alpine
+    restart: always
+    ports:
+      - "${WEB_PORT:-9119}:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/security_headers.conf:/etc/nginx/security_headers.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      # 维护模式：宿主机 touch nginx/maintenance/on 即全站切维护页（无需重启/重载）
+      - ./nginx/maintenance:/etc/nginx/maintenance:ro
+      # Let's Encrypt 证书（宿主机 certbot 签发，只读挂载给 nginx）
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      # 上传目录落在 50G 数据盘（/dev/vdb1 → /data），避免撑爆系统盘
+      - ./uploads:/var/www/uploads:ro
+      - ./frontend/dist:/var/www/html:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      # 走 /__health：维护模式下首页会返回 503，不能用 / 判定健康
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/__health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    # 物理内存 30MB，支持 Swap 弹性溢出
+    mem_limit: 64m
+    memswap_limit: 256m
+
+  backend:
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: always
+    env_file:
+      - .env
+    volumes:
+      - ./uploads:/app/uploads
+      - ./backend/app:/app/app
+      # 运维脚本（备份/回档/回收站）挂进容器；当前对象存储已停用，
+      # 日常备份由宿主机 scripts/backup_local.sh 直接写 /data，不经过容器
+      - ./scripts:/app/ops_scripts:ro
+    environment:
+      - UVICORN_WORKERS=${UVICORN_WORKERS:-2}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    # 双 worker 常驻约 2×140MB，留出图片处理与查询峰值余量
+    mem_limit: 1024m
+    memswap_limit: 2048m
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8000/api/healthz >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+  db:
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    image: postgres:15-alpine
+    restart: always
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-community_db}
+      - POSTGRES_USER=${POSTGRES_USER:-app_user}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-change_me_strong_password}
+    # 针对低物理内存调优的 PostgreSQL 参数
+    command: >
+      postgres -c shared_buffers=128MB
+               -c effective_cache_size=512MB
+               -c work_mem=4MB
+               -c maintenance_work_mem=32MB
+               -c max_connections=40
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app_user -d community_db"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    # 物理内存 100MB，支持 Swap
+    mem_limit: 768m
+    memswap_limit: 1536m
+
+  redis:
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    image: redis:7-alpine
+    restart: always
+    # 登录凭证按 sid 存储且不带 TTL，不会被 volatile-lru 淘汰；
+    # 仍需留足缓存空间，避免频繁淘汰导致缓存命中率下降。
+    command: redis-server --maxmemory 128mb --maxmemory-policy volatile-lru --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    volumes:
+      - redisdata:/data
+    # 物理内存 30MB，支持 Swap
+    mem_limit: 96m
+    memswap_limit: 384m
+
+volumes:
+  pgdata:
+  redisdata:

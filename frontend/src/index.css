@@ -1,0 +1,1952 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* 基础象牙白模式 (Light Ivory) */
+  --wb-bg-page: #f4f5f7;
+  --wb-bg-surface: #fafbfc;
+  --wb-bg-elevated: #ffffff;
+  --wb-bg-subtle: #eceef1;
+
+  --wb-text-primary: #0f172a;
+  --wb-text-secondary: #334155;
+  --wb-text-muted: #627288;
+
+  --wb-danger: #d64545;
+  --wb-brand: #b45309;
+  --wb-success: #15803d;
+  --wb-warn: #b45309;
+  --wb-info: #0369a1;
+
+  --wb-border-subtle: rgba(0, 0, 0, 0.06);
+  --wb-border-strong: rgba(0, 0, 0, 0.14);
+
+  --wb-capsule-track: #e9eaee;
+  --wb-capsule-thumb: #ffffff;
+  --wb-capsule-shadow: 0 2px 6px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --wb-card-shadow: 0 4px 20px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.02);
+
+  /* 物理弹簧阻尼曲线 */
+  --wb-spring-fast: cubic-bezier(0.16, 1, 0.3, 1);
+  --wb-spring-smooth: cubic-bezier(0.32, 0.72, 0, 1);
+  --wb-spring-bounce: cubic-bezier(0.34, 1.3, 0.64, 1);
+
+  /* 全局可配置本地自定义字体回退链 */
+  --font-custom: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", "Source Han Sans SC", "WenQuanYi Micro Hei", sans-serif;
+}
+
+html.dark {
+  /* 深色冷曜石模式 (Dark Obsidian) - 严禁 #000 纯黑 */
+  --wb-bg-page: #090a0d;
+  --wb-bg-surface: #111317;
+  --wb-bg-elevated: #181b21;
+  --wb-bg-subtle: #1c1f26;
+
+  --wb-text-primary: #f8fafc;
+  --wb-text-secondary: #cbd5e1;
+  --wb-text-muted: #94a3b8;
+
+  --wb-brand: #f2b95c;
+  --wb-success: #4ade80;
+  --wb-warn: #fbbf24;
+  --wb-info: #60a5fa;
+
+  --wb-border-subtle: rgba(255, 255, 255, 0.10);
+  --wb-border-strong: rgba(255, 255, 255, 0.20);
+
+  --wb-capsule-track: #171920;
+  --wb-capsule-thumb: #252932;
+  --wb-capsule-shadow: 0 4px 12px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  --wb-card-shadow: 0 8px 24px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+/* ==========================================================================
+   配色方案 (Color Palettes)
+   --------------------------------------------------------------------------
+   默认方案为 obsidian（曜石），即上面的 :root / .dark 基线，无需覆盖。
+   其余 7 套取自成熟开源调色板，均提供「浅色 + 深色」两种取值：
+     nord       极地蓝灰   Nord
+     tokyo      午夜蓝紫   Tokyo Night
+     kanagawa   墨青       Kanagawa (Wave / Lotus)
+     rose       樱雾       Rosé Pine (Main / Dawn)
+     gruvbox    暖铅       Gruvbox (Dark / Light)
+     everforest 宣纸       Everforest (Dark / Light)
+     catppuccin 薄荷       Catppuccin (Mocha / Latte)
+   切换只改 <html data-palette="xxx">，深浅模式仍由 .dark 类独立控制。
+   ========================================================================== */
+
+/* ---------- 午夜 · Tokyo Night ---------- */
+html[data-palette="tokyo"]:not(.dark) {
+  --wb-bg-page: #e1e2e7;
+  --wb-bg-surface: #e9eaef;
+  --wb-bg-elevated: #f7f7fa;
+  --wb-bg-subtle: #d6d8e0;
+  --wb-text-primary: #343b58;
+  --wb-text-secondary: #4f5b7a;
+  --wb-text-muted: #5c647e;
+  --wb-brand: #2e7de9;
+  --wb-capsule-track: #dcdee6;
+  --wb-capsule-thumb: #ffffff;
+}
+html[data-palette="tokyo"].dark {
+  --wb-bg-page: #16161e;
+  --wb-bg-surface: #1a1b26;
+  --wb-bg-elevated: #24283b;
+  --wb-bg-subtle: #292e42;
+  --wb-text-primary: #c0caf5;
+  --wb-text-secondary: #a9b1d6;
+  --wb-text-muted: #7b83a8;
+  --wb-brand: #7aa2f7;
+  --wb-capsule-track: #1c1e2b;
+  --wb-capsule-thumb: #2a2e45;
+}
+
+/* ---------- 墨青 · Kanagawa ---------- */
+html[data-palette="kanagawa"]:not(.dark) {
+  --wb-bg-page: #f2ecbc;
+  --wb-bg-surface: #eae2b0;
+  --wb-bg-elevated: #fbf6d3;
+  --wb-bg-subtle: #ded6a3;
+  --wb-text-primary: #545464;
+  --wb-text-secondary: #6a6470;
+  --wb-text-muted: #696357;
+  --wb-brand: #4d699b;
+  --wb-capsule-track: #e5dcae;
+  --wb-capsule-thumb: #fdf8db;
+}
+html[data-palette="kanagawa"].dark {
+  --wb-bg-page: #1f1f28;
+  --wb-bg-surface: #2a2a37;
+  --wb-bg-elevated: #363646;
+  --wb-bg-subtle: #223249;
+  --wb-text-primary: #dcd7ba;
+  --wb-text-secondary: #c8c093;
+  --wb-text-muted: #8a8a7a;
+  --wb-brand: #7e9cd8;
+  --wb-capsule-track: #24242f;
+  --wb-capsule-thumb: #32323f;
+}
+
+/* ---------- 樱雾 · Rosé Pine ---------- */
+html[data-palette="rose"]:not(.dark) {
+  --wb-bg-page: #faf4ed;
+  --wb-bg-surface: #fff9f2;
+  --wb-bg-elevated: #ffffff;
+  --wb-bg-subtle: #f2e9e1;
+  --wb-text-primary: #575279;
+  --wb-text-secondary: #6e6a86;
+  --wb-text-muted: #716d82;
+  --wb-brand: #6e5a8c;
+  --wb-capsule-track: #f0e7de;
+  --wb-capsule-thumb: #ffffff;
+}
+html[data-palette="rose"].dark {
+  --wb-bg-page: #191724;
+  --wb-bg-surface: #1f1d2e;
+  --wb-bg-elevated: #26233a;
+  --wb-bg-subtle: #2a273f;
+  --wb-text-primary: #e0def4;
+  --wb-text-secondary: #a6a0c4;
+  --wb-text-muted: #6e6a86;
+  --wb-brand: #c4a7e7;
+  --wb-capsule-track: #211f31;
+  --wb-capsule-thumb: #2a273f;
+}
+
+/* ---------- 薄荷 · Catppuccin ---------- */
+html[data-palette="catppuccin"]:not(.dark) {
+  --wb-bg-page: #eff1f5;
+  --wb-bg-surface: #e6e9ef;
+  --wb-bg-elevated: #ffffff;
+  --wb-bg-subtle: #dce0e8;
+  --wb-text-primary: #4c4f69;
+  --wb-text-secondary: #5c5f77;
+  --wb-text-muted: #6a6d7a;
+  --wb-brand: #8839ef;
+  --wb-capsule-track: #e2e5ec;
+  --wb-capsule-thumb: #ffffff;
+}
+html[data-palette="catppuccin"].dark {
+  --wb-bg-page: #11111b;
+  --wb-bg-surface: #1e1e2e;
+  --wb-bg-elevated: #313244;
+  --wb-bg-subtle: #2a2b3d;
+  --wb-text-primary: #cdd6f4;
+  --wb-text-secondary: #bac2de;
+  --wb-text-muted: #a6adc8;
+  --wb-brand: #cba6f7;
+  --wb-capsule-track: #181825;
+  --wb-capsule-thumb: #313244;
+}
+
+/* ---------- 极光 · Aurora（渐变） ---------- */
+html[data-palette="aurora"]:not(.dark) {
+  --wb-bg-page: #f3f5fd;
+  --wb-bg-surface: #ffffff;
+  --wb-bg-elevated: #ffffff;
+  --wb-bg-subtle: #e8ecfa;
+  --wb-text-primary: #171c2e;
+  --wb-text-secondary: #414a66;
+  --wb-text-muted: #707a99;
+  --wb-brand: #4f6bff;
+  --wb-brand-gradient: linear-gradient(135deg, #4f9bff 0%, #8b5cf6 100%);
+  --wb-capsule-track: #e6eafa;
+  --wb-capsule-thumb: #ffffff;
+  --wb-page-gradient: linear-gradient(165deg, rgba(79,155,255,0.12) 0%, rgba(139,92,246,0.09) 42%, rgba(79,155,255,0) 78%);
+}
+html[data-palette="aurora"].dark {
+  --wb-bg-page: #0b0e1a;
+  --wb-bg-surface: #151a2e;
+  --wb-bg-elevated: #1b2138;
+  --wb-bg-subtle: #222a44;
+  --wb-text-primary: #e8ecfa;
+  --wb-text-secondary: #b9c2e0;
+  --wb-text-muted: #7d87a8;
+  --wb-brand: #7f9cff;
+  --wb-brand-gradient: linear-gradient(135deg, #4f8bff 0%, #a06bff 100%);
+  --wb-capsule-track: #121628;
+  --wb-capsule-thumb: #232a44;
+  --wb-page-gradient: linear-gradient(165deg, rgba(79,139,255,0.16) 0%, rgba(160,107,255,0.12) 45%, rgba(11,14,26,0) 80%);
+}
+
+/* ---------- 落日 · Sunset（渐变） ---------- */
+html[data-palette="sunset"]:not(.dark) {
+  --wb-bg-page: #fdf4f0;
+  --wb-bg-surface: #ffffff;
+  --wb-bg-elevated: #ffffff;
+  --wb-bg-subtle: #fbe8e1;
+  --wb-text-primary: #2a1712;
+  --wb-text-secondary: #5c3a2e;
+  --wb-text-muted: #8d6b5e;
+  --wb-brand: #e05a3a;
+  --wb-brand-gradient: linear-gradient(135deg, #ff9a5a 0%, #ff5f8f 100%);
+  --wb-capsule-track: #f9e3dc;
+  --wb-capsule-thumb: #ffffff;
+  --wb-page-gradient: linear-gradient(165deg, rgba(255,154,90,0.14) 0%, rgba(255,95,143,0.09) 42%, rgba(253,244,240,0) 78%);
+}
+html[data-palette="sunset"].dark {
+  --wb-bg-page: #170d10;
+  --wb-bg-surface: #241518;
+  --wb-bg-elevated: #2e1a1f;
+  --wb-bg-subtle: #3a2028;
+  --wb-text-primary: #fbeae6;
+  --wb-text-secondary: #e2bdb6;
+  --wb-text-muted: #a97f7a;
+  --wb-brand: #ff8f6b;
+  --wb-brand-gradient: linear-gradient(135deg, #ff8a4c 0%, #ff5f8f 100%);
+  --wb-capsule-track: #1f1114;
+  --wb-capsule-thumb: #2e1a1f;
+  --wb-page-gradient: linear-gradient(165deg, rgba(255,138,76,0.15) 0%, rgba(255,95,143,0.12) 45%, rgba(23,13,16,0) 80%);
+}
+
+/* ---------- 深海 · Ocean（渐变） ---------- */
+html[data-palette="ocean"]:not(.dark) {
+  --wb-bg-page: #eff7fa;
+  --wb-bg-surface: #ffffff;
+  --wb-bg-elevated: #ffffff;
+  --wb-bg-subtle: #e2f1f6;
+  --wb-text-primary: #0d2230;
+  --wb-text-secondary: #2f4f5e;
+  --wb-text-muted: #5f7d8a;
+  --wb-brand: #0e7d8f;
+  --wb-brand-gradient: linear-gradient(135deg, #28c4d8 0%, #3a7bfd 100%);
+  --wb-capsule-track: #dff0f6;
+  --wb-capsule-thumb: #ffffff;
+  --wb-page-gradient: linear-gradient(165deg, rgba(40,196,216,0.13) 0%, rgba(58,123,253,0.09) 42%, rgba(239,247,250,0) 78%);
+}
+html[data-palette="ocean"].dark {
+  --wb-bg-page: #07141a;
+  --wb-bg-surface: #0f2028;
+  --wb-bg-elevated: #142a34;
+  --wb-bg-subtle: #1b3641;
+  --wb-text-primary: #e2f4f8;
+  --wb-text-secondary: #a9cbd6;
+  --wb-text-muted: #6f929e;
+  --wb-brand: #4fd6e6;
+  --wb-brand-gradient: linear-gradient(135deg, #26c6da 0%, #3f8cff 100%);
+  --wb-capsule-track: #0a1a21;
+  --wb-capsule-thumb: #142a34;
+  --wb-page-gradient: linear-gradient(165deg, rgba(38,198,218,0.15) 0%, rgba(63,140,255,0.12) 45%, rgba(7,20,26,0) 80%);
+}
+
+
+html {
+  overflow-y: scroll;
+  /* clip 而不是 hidden：hidden 会让 html 生成滚动容器，配合 body 的规则进一步破坏 sticky */
+  overflow-x: clip;
+  max-width: 100vw;
+  scrollbar-gutter: stable;
+}
+
+body {
+  /* 关键：必须用 clip。overflow-x: hidden 会让 overflow-y 计算成 auto，
+     body 因此变成「不滚动的滚动容器」，内部所有 position: sticky
+     （文章页左侧目录、吸顶工具栏等）全部失效，表现为跟随页面一起滚走。
+     clip 只裁剪越界内容，不创建滚动容器，sticky 才能正常吸附在视口上。 */
+  overflow-x: clip;
+  max-width: 100vw;
+  background-color: var(--wb-bg-page);
+  /* 渐变主题会在这里叠一层很淡的氛围光；纯色主题为 none，不受影响 */
+  /* 氛围光改由 ::before 承载：background-image 无法插值，
+     用 opacity 过渡让渐变主题切换时淡出淡入而不是瞬间跳变 */
+  background-image: none;
+  color: var(--wb-text-primary);
+  font-family: var(--font-custom, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans SC", "Source Han Sans SC", "WenQuanYi Micro Hei", sans-serif);
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+input, textarea, select {
+  background-color: var(--wb-bg-subtle);
+  color: var(--wb-text-primary);
+}
+
+button, a {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 全屏圆心水波纹 View Transition 换肤 */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-old(root) {
+  z-index: 1;
+}
+::view-transition-new(root) {
+  z-index: 9999;
+}
+
+/* 渐变主题的氛围光层（可淡入淡出） */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  /* 旧渐变：切换瞬间保持画面不空 */
+  background-image: var(--wb-page-gradient-old, var(--wb-page-gradient, none));
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image: var(--wb-page-gradient, none);
+  opacity: 0;
+  transition: opacity 0.45s var(--wb-spring-smooth);
+}
+
+/* 新渐变淡入，盖住旧层；结束后由 JS 把旧值同步成新值 */
+html.page-gradient-fade body::after {
+  opacity: 1;
+}
+
+/* 降级优雅过渡 */
+html.theme-transitioning,
+html.theme-transitioning * {
+  transition: background-color 0.45s var(--wb-spring-smooth),
+              opacity 0.45s var(--wb-spring-smooth),
+              border-color 0.45s var(--wb-spring-smooth),
+              color 0.45s var(--wb-spring-smooth),
+              box-shadow 0.45s var(--wb-spring-smooth) !important;
+}
+
+/* 无障碍：减少动效降级 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* 微交互触觉形变类 */
+.wb-pressable {
+  /* 用独立的 translate/scale 属性，避免覆盖元素自身的 transform
+     （否则 Tailwind 的 -translate-y-1/2 居中按钮按下时会跳位） */
+  transition: translate 0.18s var(--wb-spring-fast), scale 0.18s var(--wb-spring-fast), opacity 0.18s var(--wb-spring-fast);
+}
+.wb-pressable:hover {
+  translate: 0 -1.5px;
+}
+.wb-pressable:active {
+  scale: 0.975;
+}
+
+/* 自定义极细钛金属全局滚动条 (解决 Windows 原生粗大滚动条溢出) */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--wb-text-muted) 38%, transparent) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 3px;
+  height: 3px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--wb-text-muted) 38%, transparent);
+  border-radius: 9999px;
+  transition: background-color 0.2s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--wb-text-muted) 68%, transparent);
+}
+
+/* 系统原生滚动条自带的上下/左右箭头：全站统一去掉，
+   只保留一条极细滑块，滚动功能完全不受影响 */
+::-webkit-scrollbar-button {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* 彻底隐藏滚动条工具类 (Chrome, Edge, Safari, Firefox) */
+.no-scrollbar {
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* 常驻滚动条槽位：
+   内容从「不满一屏」变成「需要滚动」时（展开跟帖、展开长评论、切换排序），
+   滚动条出现/消失会让容器可用宽度在 9px 与 0 之间来回跳变，
+   表现为整块卡片横向抖一下。scrollbar-gutter 让槽位常驻，宽度恒定。 */
+.wb-scroll-stable {
+  scrollbar-gutter: stable;
+}
+
+/* 下拉菜单与微组件专属极细内嵌滚动条 */
+.wb-scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--wb-border-strong) transparent;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.wb-scrollbar-thin::-webkit-scrollbar {
+  width: 3px;
+  height: 3px;
+}
+
+.wb-scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 6px 0;
+}
+
+.wb-scrollbar-thin::-webkit-scrollbar-thumb {
+  background: var(--wb-border-strong);
+  border-radius: 9999px;
+}
+
+.wb-scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: var(--wb-text-primary);
+}
+
+/* 跑马灯走马灯动画 */
+@keyframes ticker-scroll {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.wb-animate-ticker {
+  display: inline-flex;
+  white-space: nowrap;
+  animation: ticker-scroll 28s linear infinite;
+}
+
+.wb-animate-ticker:hover {
+  animation-play-state: paused;
+}
+
+/* ==========================================================================
+   个性化偏好 (Appearance Preferences)
+   --------------------------------------------------------------------------
+   全部由 <html data-*> 属性驱动，切换即时生效、无需重渲染：
+     data-accent      强调色（覆盖配色方案的品牌色）
+     data-density     界面密度（紧凑 / 标准 / 宽松）
+     data-motion      动效强度（完整 / 减弱 / 关闭）
+     data-texture     背景质感（纯色 / 噪点 / 网格 / 光晕）
+     data-code-theme  代码块主题（跟随主题 / 终端黑 / 纸张 / 高对比）
+   根字号缩放由 JS 直接写 html.style.fontSize 完成。
+   ========================================================================== */
+
+/* ---------- 强调色 ---------- */
+html[data-accent="amber"]:not(.dark) { --wb-brand: #b45309; }
+html[data-accent="amber"].dark { --wb-brand: #f2b95c; }
+html[data-accent="teal"]:not(.dark) { --wb-brand: #0f766e; }
+html[data-accent="teal"].dark { --wb-brand: #5eead4; }
+html[data-accent="cyan"]:not(.dark) { --wb-brand: #0e7490; }
+html[data-accent="cyan"].dark { --wb-brand: #67e8f9; }
+html[data-accent="blue"]:not(.dark) { --wb-brand: #1d4ed8; }
+html[data-accent="blue"].dark { --wb-brand: #60a5fa; }
+html[data-accent="indigo"]:not(.dark) { --wb-brand: #4338ca; }
+html[data-accent="indigo"].dark { --wb-brand: #a5b4fc; }
+html[data-accent="violet"]:not(.dark) { --wb-brand: #6d28d9; }
+html[data-accent="violet"].dark { --wb-brand: #c4b5fd; }
+html[data-accent="crimson"]:not(.dark) { --wb-brand: #b91c1c; }
+html[data-accent="crimson"].dark { --wb-brand: #fca5a5; }
+html[data-accent="sakura"]:not(.dark) { --wb-brand: #9d174d; }
+html[data-accent="sakura"].dark { --wb-brand: #f9a8d4; }
+html[data-accent="gold"]:not(.dark) { --wb-brand: #8a6a12; }
+html[data-accent="gold"].dark { --wb-brand: #e8c766; }
+html[data-accent="olive"]:not(.dark) { --wb-brand: #4d7c0f; }
+html[data-accent="olive"].dark { --wb-brand: #bef264; }
+
+/* 新增强调色预设（浅色为深色调，深色为高亮变体，保证对比度） */
+html[data-accent="rose"]:not(.dark) { --wb-brand: #b0143c; }
+html[data-accent="rose"].dark { --wb-brand: #fb7185; }
+html[data-accent="cerulean"]:not(.dark) { --wb-brand: #0369a1; }
+html[data-accent="cerulean"].dark { --wb-brand: #7dd3fc; }
+html[data-accent="mint"]:not(.dark) { --wb-brand: #047857; }
+html[data-accent="mint"].dark { --wb-brand: #6ee7b7; }
+html[data-accent="slate"]:not(.dark) { --wb-brand: #475569; }
+html[data-accent="slate"].dark { --wb-brand: #cbd5e1; }
+html[data-accent="peach"]:not(.dark) { --wb-brand: #c2410c; }
+html[data-accent="peach"].dark { --wb-brand: #fdba74; }
+html[data-accent="haze"]:not(.dark) { --wb-brand: #7e22ce; }
+html[data-accent="haze"].dark { --wb-brand: #d8b4fe; }
+
+
+/* 补充纯色强调色 */
+html[data-accent="lemon"]:not(.dark) { --wb-brand: #a16207; }
+html[data-accent="lemon"].dark { --wb-brand: #fde047; }
+html[data-accent="pine"]:not(.dark) { --wb-brand: #15803d; }
+html[data-accent="pine"].dark { --wb-brand: #86efac; }
+html[data-accent="mauve"]:not(.dark) { --wb-brand: #86198f; }
+html[data-accent="mauve"].dark { --wb-brand: #f0abfc; }
+html[data-accent="bronze"]:not(.dark) { --wb-brand: #92400e; }
+html[data-accent="bronze"].dark { --wb-brand: #fcd34d; }
+html[data-accent="ink"]:not(.dark) { --wb-brand: #1e293b; }
+html[data-accent="ink"].dark { --wb-brand: #e2e8f0; }
+html[data-accent="rosegold"]:not(.dark) { --wb-brand: #9f1239; }
+html[data-accent="rosegold"].dark { --wb-brand: #fda4af; }
+
+/* 渐变强调色：文字/描边仍用主色保证可读，只有实底元素铺渐变 */
+html[data-accent="sunset"]:not(.dark) { --wb-brand: #ea580c; --wb-brand-2: #db2777; }
+html[data-accent="sunset"].dark { --wb-brand: #fb923c; --wb-brand-2: #f472b6; }
+html[data-accent="aurora"]:not(.dark) { --wb-brand: #0891b2; --wb-brand-2: #7c3aed; }
+html[data-accent="aurora"].dark { --wb-brand: #22d3ee; --wb-brand-2: #a78bfa; }
+html[data-accent="citrus"]:not(.dark) { --wb-brand: #65a30d; --wb-brand-2: #f59e0b; }
+html[data-accent="citrus"].dark { --wb-brand: #a3e635; --wb-brand-2: #fbbf24; }
+html[data-accent="candy"]:not(.dark) { --wb-brand: #db2777; --wb-brand-2: #7c3aed; }
+html[data-accent="candy"].dark { --wb-brand: #f472b6; --wb-brand-2: #a78bfa; }
+
+html[data-accent="sunset"] .bg-wb-brand,
+html[data-accent="sunset"].dark .bg-wb-brand,
+html[data-accent="aurora"] .bg-wb-brand,
+html[data-accent="aurora"].dark .bg-wb-brand,
+html[data-accent="citrus"] .bg-wb-brand,
+html[data-accent="citrus"].dark .bg-wb-brand,
+html[data-accent="candy"] .bg-wb-brand,
+html[data-accent="candy"].dark .bg-wb-brand {
+  background-image: linear-gradient(135deg, var(--wb-brand), var(--wb-brand-2));
+}
+
+/* ---------- 界面密度 ---------- */
+html[data-density="compact"] .space-y-6 > * + * { margin-top: 0.9rem; }
+html[data-density="compact"] .space-y-5 > * + * { margin-top: 0.7rem; }
+html[data-density="compact"] .space-y-4 > * + * { margin-top: 0.55rem; }
+html[data-density="compact"] .space-y-3 > * + * { margin-top: 0.4rem; }
+
+html[data-density="cozy"] .space-y-6 > * + * { margin-top: 1.9rem; }
+html[data-density="cozy"] .space-y-5 > * + * { margin-top: 1.5rem; }
+html[data-density="cozy"] .space-y-4 > * + * { margin-top: 1.25rem; }
+html[data-density="cozy"] .space-y-3 > * + * { margin-top: 0.95rem; }
+
+/* ---------- 动效强度 ---------- */
+html[data-motion="soft"] *,
+html[data-motion="soft"] *::before,
+html[data-motion="soft"] *::after {
+  transition-duration: 0.12s !important;
+  animation-duration: 0.24s !important;
+}
+
+html[data-motion="off"] *,
+html[data-motion="off"] *::before,
+html[data-motion="off"] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+html[data-motion="soft"] .wb-pressable:hover,
+html[data-motion="off"] .wb-pressable:hover {
+  transform: none;
+}
+
+/* ---------- 背景质感 ---------- */
+
+/* 极光流：三层强调色光带错位叠加，缓慢漂移（跟随 --wb-brand） */
+html[data-texture="aurora-flow"] body {
+  background-image:
+    radial-gradient(1200px 520px at 18% -8%, color-mix(in srgb, var(--wb-brand) 30%, transparent), transparent 62%),
+    radial-gradient(900px 460px at 78% 4%, color-mix(in srgb, var(--wb-info) 24%, transparent), transparent 64%),
+    radial-gradient(1100px 620px at 45% 108%, color-mix(in srgb, var(--wb-brand) 14%, transparent), transparent 68%);
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  animation: wbAuroraDrift 36s ease-in-out infinite alternate;
+}
+
+@keyframes wbAuroraDrift {
+  from { background-position: 0 0, 0 0, 0 0; }
+  to   { background-position: 6% 2%, -5% 3%, 3% -2%; }
+}
+
+/* 星云：强调色与信息色两团柔光交叠，像深空里的星系 */
+html[data-texture="nebula"] body {
+  background-image:
+    radial-gradient(760px 760px at 22% 18%, color-mix(in srgb, var(--wb-brand) 26%, transparent), transparent 58%),
+    radial-gradient(640px 640px at 74% 32%, color-mix(in srgb, var(--wb-info) 22%, transparent), transparent 60%),
+    radial-gradient(900px 520px at 50% 96%, color-mix(in srgb, var(--wb-brand) 12%, transparent), transparent 68%);
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+}
+
+/* 晨雾：单向渐隐的柔雾，最安静的一种，适合长文阅读 */
+html[data-texture="mist"] body {
+  background-image:
+    linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--wb-brand) 14%, transparent),
+      transparent 42%
+    ),
+    radial-gradient(1200px 600px at 50% -10%, color-mix(in srgb, var(--wb-info) 10%, transparent), transparent 70%);
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+}
+
+/* 尊重系统「减少动效」：极光流不做位移 */
+@media (prefers-reduced-motion: reduce) {
+  html[data-texture="aurora-flow"] body {
+    animation: none;
+  }
+}
+
+html[data-texture="grid"] body {
+  background-image:
+    linear-gradient(to right, var(--wb-border-subtle) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--wb-border-subtle) 1px, transparent 1px);
+  background-size: 32px 32px;
+  background-attachment: fixed;
+}
+
+html[data-texture="dots"] body {
+  background-image: radial-gradient(var(--wb-border-strong) 1px, transparent 1.2px);
+  background-size: 16px 16px;
+  background-attachment: fixed;
+}
+
+html[data-texture="stripes"] body {
+  background-image: repeating-linear-gradient(
+    135deg,
+    var(--wb-border-subtle) 0 1px,
+    transparent 1px 12px
+  );
+  background-attachment: fixed;
+}
+
+/* 光晕：主光源 + 侧向补光 + 冷色反光，比单层径向渐变更有纵深 */
+html[data-texture="glow"] body {
+  background-image:
+    radial-gradient(
+      1200px 660px at 50% -8%,
+      color-mix(in srgb, var(--wb-brand) 32%, transparent),
+      transparent 72%
+    ),
+    radial-gradient(
+      900px 520px at 88% 2%,
+      color-mix(in srgb, var(--wb-brand) 12%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      760px 440px at 6% 0%,
+      color-mix(in srgb, var(--wb-info) 10%, transparent),
+      transparent 72%
+    );
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+}
+
+/* 极光：品牌色 + 信息色双向晕染，底部再压一层回光 */
+html[data-texture="aurora"] body {
+  background-image:
+    radial-gradient(
+      1100px 680px at 12% -12%,
+      color-mix(in srgb, var(--wb-brand) 34%, transparent),
+      transparent 66%
+    ),
+    radial-gradient(
+      1000px 640px at 88% -6%,
+      color-mix(in srgb, var(--wb-info) 28%, transparent),
+      transparent 66%
+    ),
+    radial-gradient(
+      900px 560px at 50% 112%,
+      color-mix(in srgb, var(--wb-brand) 16%, transparent),
+      transparent 70%
+    );
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+}
+
+/* ---------- 代码块主题 ---------- */
+html[data-code-theme="terminal"] .wb-code-surface {
+  background-color: #0b0e14;
+  border-color: rgba(255, 255, 255, 0.08);
+}
+html[data-code-theme="terminal"] .wb-code-toolbar {
+  background-color: #11151f;
+  border-color: rgba(255, 255, 255, 0.08);
+  color: #8b98ad;
+}
+html[data-code-theme="terminal"] .wb-code-badge {
+  background-color: #0b0e14;
+  border-color: rgba(255, 255, 255, 0.1);
+}
+html[data-code-theme="terminal"] .wb-code-badge span {
+  color: #d6deeb;
+}
+html[data-code-theme="terminal"] .wb-code-text {
+  color: #d6deeb;
+}
+html[data-code-theme="terminal"] .wb-code-lines {
+  color: #3b4657;
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+html[data-code-theme="paper"] .wb-code-surface {
+  background-color: #fbf8f1;
+  border-color: rgba(120, 100, 70, 0.18);
+}
+html[data-code-theme="paper"] .wb-code-toolbar {
+  background-color: #f3eee2;
+  border-color: rgba(120, 100, 70, 0.16);
+  color: #8a7c66;
+}
+html[data-code-theme="paper"] .wb-code-badge {
+  background-color: #fffdf7;
+  border-color: rgba(120, 100, 70, 0.18);
+}
+html[data-code-theme="paper"] .wb-code-badge span {
+  color: #3b342b;
+}
+html[data-code-theme="paper"] .wb-code-text {
+  color: #3b342b;
+}
+html[data-code-theme="paper"] .wb-code-lines {
+  color: #b5a891;
+  border-color: rgba(120, 100, 70, 0.14);
+}
+
+/* 纸张主题在深色模式下的暖色变体，避免整块刺眼亮白 */
+html.dark[data-code-theme="paper"] .wb-code-surface {
+  background-color: #241f1a;
+  border-color: rgba(255, 255, 255, 0.12);
+}
+html.dark[data-code-theme="paper"] .wb-code-toolbar {
+  background-color: #2c2620;
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #b3a48c;
+}
+html.dark[data-code-theme="paper"] .wb-code-badge {
+  background-color: #241f1a;
+  border-color: rgba(255, 255, 255, 0.14);
+}
+html.dark[data-code-theme="paper"] .wb-code-badge span,
+html.dark[data-code-theme="paper"] .wb-code-text {
+  color: #e6dcc8;
+}
+html.dark[data-code-theme="paper"] .wb-code-lines {
+  color: #6b5f4e;
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+html[data-code-theme="contrast"] .wb-code-surface {
+  background-color: #ffffff;
+  border-color: #000000;
+}
+html[data-code-theme="contrast"] .wb-code-toolbar {
+  background-color: #ffffff;
+  border-color: #000000;
+  color: #000000;
+}
+html[data-code-theme="contrast"] .wb-code-badge {
+  background-color: #ffffff;
+  border-color: #000000;
+}
+html[data-code-theme="contrast"] .wb-code-badge span,
+html[data-code-theme="contrast"] .wb-code-text {
+  color: #000000;
+}
+html[data-code-theme="contrast"] .wb-code-lines {
+  color: #444444;
+  border-color: #000000;
+}
+
+html.dark[data-code-theme="contrast"] .wb-code-surface {
+  background-color: #000000;
+  border-color: #ffffff;
+}
+html.dark[data-code-theme="contrast"] .wb-code-toolbar {
+  background-color: #000000;
+  border-color: #ffffff;
+  color: #ffffff;
+}
+html.dark[data-code-theme="contrast"] .wb-code-badge {
+  background-color: #000000;
+  border-color: #ffffff;
+}
+html.dark[data-code-theme="contrast"] .wb-code-badge span,
+html.dark[data-code-theme="contrast"] .wb-code-text {
+  color: #ffffff;
+}
+html.dark[data-code-theme="contrast"] .wb-code-lines {
+  color: #cccccc;
+  border-color: #ffffff;
+}
+
+/* ---------- 深色模式分段滑块提亮 ----------
+   深色主题下 capsule-thumb 与 capsule-track 亮度差过小，
+   滑块位移几乎不可见（点选像"瞬间变色"而不是"滑过去"）。
+   这里用「正文色 16% + 浮层色」动态混出更亮的拇指色，
+   既保证各配色方案/强调色下都有明显对比，又不引入新的硬编码颜色。 */
+html.dark[data-palette] {
+  --wb-capsule-thumb: color-mix(in srgb, var(--wb-text-primary) 16%, var(--wb-bg-elevated));
+}
+html.dark:not([data-palette]) {
+  --wb-capsule-thumb: color-mix(in srgb, var(--wb-text-primary) 16%, var(--wb-bg-elevated));
+}
+
+/* 系统级「减弱动效」优先级最高：即使应用内选择了"完整/减弱"也要降级 */
+@media (prefers-reduced-motion: reduce) {
+  html[data-motion] *,
+  html[data-motion] *::before,
+  html[data-motion] *::after,
+  html:not([data-motion]) *,
+  html:not([data-motion]) *::before,
+  html:not([data-motion]) *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* 聊天长消息列表：屏幕外的消息行跳过渲染（浏览器级轻量虚拟化，无需引入依赖） */
+.wb-msg-viewport > * {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 72px;
+}
+
+/* ---------- 水波 ---------- */
+
+/* ---------- 光斑（散景） ---------- */
+html[data-texture="bokeh"] body {
+  background-image:
+    radial-gradient(220px 220px at 12% 18%, color-mix(in srgb, var(--wb-brand) 16%, transparent), transparent 70%),
+    radial-gradient(160px 160px at 78% 12%, color-mix(in srgb, var(--wb-info) 14%, transparent), transparent 72%),
+    radial-gradient(280px 280px at 88% 68%, color-mix(in srgb, var(--wb-brand) 10%, transparent), transparent 74%),
+    radial-gradient(180px 180px at 32% 82%, color-mix(in srgb, var(--wb-info) 12%, transparent), transparent 72%);
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+}
+
+/* ---------- 星野 ---------- */
+html[data-texture="stars"] body {
+  background-image:
+    radial-gradient(1.6px 1.6px at 24px 36px, var(--wb-text-muted) 50%, transparent 51%),
+    radial-gradient(1.4px 1.4px at 96px 84px, var(--wb-text-muted) 50%, transparent 51%),
+    radial-gradient(1.2px 1.2px at 160px 28px, var(--wb-text-muted) 50%, transparent 51%),
+    radial-gradient(600px 380px at 82% 8%, color-mix(in srgb, var(--wb-brand) 10%, transparent), transparent 72%);
+  background-size: 192px 132px, 192px 132px, 192px 132px, 100% 100%;
+  background-attachment: fixed;
+  opacity: 1;
+}
+
+/* ---------- 丝绸 ---------- */
+
+/* ---------- 闪光弹 ----------
+   动效层由 BackgroundTextureLayer 的 canvas 绘制（后续可替换为 fluid.js 实现），
+   这里只负责把页面调成高亮浅色方案，保证文字在亮底上依然可读。 */
+html[data-texture="flashbang"] body {
+  background-color: #06070a;
+}
+html[data-texture="flashbang"][data-palette],
+html[data-texture="flashbang"].dark[data-palette],
+html[data-texture="flashbang"]:not([data-palette]) {
+  --wb-bg-page: #06070a;
+  --wb-bg-surface: rgba(14, 17, 23, 0.72);
+  --wb-bg-elevated: rgba(18, 22, 30, 0.86);
+  --wb-bg-subtle: rgba(30, 36, 48, 0.6);
+  --wb-text-primary: #eef2ff;
+  --wb-text-secondary: #c3cbe0;
+  --wb-text-muted: #8d98b2;
+  --wb-border-subtle: rgba(255, 255, 255, 0.12);
+  --wb-border-strong: rgba(255, 255, 255, 0.22);
+  --wb-capsule-track: rgba(255, 255, 255, 0.1);
+  --wb-capsule-thumb: rgba(255, 255, 255, 0.18);
+  /* 用轻量阴影 + 描边：大模糊阴影会被侧栏 overflow 裁成直角方块 */
+  --wb-card-shadow: 0 1px 2px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+/* 根节点建立独立层叠上下文：背景层用 z-index:-1 沉到内容下方，
+   避免 fixed 背景盖住未定位的卡片（此前表现为元素被遮住、hover 才浮出来） */
+#root {
+  position: relative;
+  z-index: 1;
+}
+
+.wb-texture-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+  pointer-events: none;
+  /* 流体本身很艳，压一点亮度避免刺眼 */
+  opacity: 0.88;
+}
+
+/* ---------- 慢速动态背景层 ----------
+   只用 transform 动画（走合成线程，不触发重排重绘），
+   周期 80~110 秒、位移不超过 5%，属于"几乎察觉不到但页面是活的"。 */
+.wb-texture-drift {
+  position: fixed;
+  inset: -15%;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.55;
+  will-change: transform;
+  transition: opacity 600ms ease;
+}
+
+html[data-texture="glow"] .wb-texture-drift {
+  background:
+    radial-gradient(58% 44% at 28% 18%, color-mix(in srgb, var(--wb-brand) 20%, transparent), transparent 70%),
+    radial-gradient(52% 38% at 74% 72%, color-mix(in srgb, var(--wb-brand) 11%, transparent), transparent 72%);
+  animation: wb-drift-a 64s ease-in-out infinite alternate;
+}
+
+html[data-texture="aurora"] .wb-texture-drift {
+  background:
+    radial-gradient(55% 42% at 22% 12%, color-mix(in srgb, var(--wb-brand) 18%, transparent), transparent 68%),
+    radial-gradient(52% 40% at 82% 20%, color-mix(in srgb, var(--wb-info) 14%, transparent), transparent 70%),
+    radial-gradient(60% 45% at 50% 92%, color-mix(in srgb, var(--wb-brand) 10%, transparent), transparent 72%);
+  animation: wb-drift-b 74s ease-in-out infinite alternate;
+}
+
+html[data-texture="bokeh"] .wb-texture-drift {
+  background:
+    radial-gradient(190px 190px at 18% 26%, color-mix(in srgb, var(--wb-brand) 14%, transparent), transparent 70%),
+    radial-gradient(150px 150px at 72% 18%, color-mix(in srgb, var(--wb-info) 12%, transparent), transparent 72%),
+    radial-gradient(230px 230px at 84% 66%, color-mix(in srgb, var(--wb-brand) 9%, transparent), transparent 74%);
+  animation: wb-drift-c 84s ease-in-out infinite alternate;
+}
+
+@keyframes wb-drift-a {
+  from { transform: translate3d(-3%, -2%, 0) scale(1.02); }
+  to   { transform: translate3d(3%, 2.5%, 0) scale(1.07); }
+}
+@keyframes wb-drift-b {
+  from { transform: translate3d(2.5%, -2%, 0) scale(1.04); }
+  to   { transform: translate3d(-2.5%, 2%, 0) scale(1.09); }
+}
+@keyframes wb-drift-c {
+  from { transform: translate3d(-1.5%, 2%, 0) scale(1.03); }
+  to   { transform: translate3d(2%, -2.5%, 0) scale(1.06); }
+}
+
+/* 关闭动效 / 系统偏好减弱时，背景保持静止 */
+html[data-motion="off"] .wb-texture-drift { animation: none; }
+@media (prefers-reduced-motion: reduce) {
+  .wb-texture-drift { animation: none !important; }
+}
+
+
+/* 信息流卡片：离开视口后跳过布局与绘制，长列表滚动更顺。
+   contain-intrinsic-size 提供占位高度，避免滚动条长度剧烈跳变。 */
+.cv-auto {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 180px;
+}
+
+
+/* ============================================================
+   磨砂材质（两档，视觉一致但开销不同）
+   ------------------------------------------------------------
+   .frost       —— 浮在【内容】之上（导航、搜索框、分段控件、评论栏）：
+                   必须真模糊，才能透出下方文字与配色。
+   .frost-panel —— 浮在【暗色遮罩】之上（Modal、抽屉）：
+                   遮罩本身是均匀的 rgba(0,0,0,.6)，模糊它没有任何视觉收益，
+                   纯属白白消耗 GPU，因此只做半透底色 + 同样的渐变与内高光。
+   ============================================================ */
+.frost {
+  /* 模糊强度用变量控制：小屏自动降低，避免手机上大面积 backdrop-filter 掉帧 */
+  --frost-blur: 34px;
+  --frost-sat: 210%;
+  background-color: rgba(252, 253, 255, 0.38);
+  background-image: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.44),
+    rgba(255, 255, 255, 0.14)
+  );
+  /* 更透之后必须加模糊，否则文字穿过玻璃会觉得脏 */
+  -webkit-backdrop-filter: blur(var(--frost-blur)) saturate(var(--frost-sat)) brightness(1.04);
+  backdrop-filter: blur(var(--frost-blur)) saturate(var(--frost-sat)) brightness(1.04);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    inset 0 -1px 0 rgba(15, 23, 42, 0.05);
+}
+
+/* 手机/平板：模糊半径减半，滚动明显更顺（视觉差异很小，性能收益很大） */
+@media (max-width: 1023px) {
+  .frost {
+    --frost-blur: 10px;
+    --frost-sat: 120%;
+  }
+}
+
+/* 极细颗粒：打断模糊后的塑料感（叠在内容之上，2.2% 几乎不可察） */
+.frost-panel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0.022;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+html.dark .frost {
+  background-color: rgba(22, 25, 32, 0.40);
+  background-image: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.09),
+    rgba(255, 255, 255, 0.02)
+  );
+  -webkit-backdrop-filter: blur(var(--frost-blur)) saturate(var(--frost-sat)) brightness(1.10);
+  backdrop-filter: blur(var(--frost-blur)) saturate(var(--frost-sat)) brightness(1.10);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.5);
+}
+
+/* 弹层：不加 backdrop-filter，用半透底模拟同样的观感 */
+.frost-panel {
+  background-color: rgba(252, 253, 255, 0.86);
+  background-image: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.72),
+    rgba(255, 255, 255, 0.42)
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    inset 0 -1px 0 rgba(15, 23, 42, 0.06);
+}
+
+html.dark .frost-panel {
+  background-color: rgba(26, 29, 36, 0.88);
+  background-image: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.075),
+    rgba(255, 255, 255, 0.012)
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.45);
+}
+
+/* 支持 color-mix 时底色跟随配色方案，避免 8 套主题下偏灰 */
+@supports (color: color-mix(in srgb, #fff 50%, transparent)) {
+  .frost {
+    background-color: color-mix(in srgb, var(--wb-bg-surface) 56%, transparent);
+  }
+  html.dark .frost {
+    background-color: color-mix(in srgb, var(--wb-bg-elevated) 58%, transparent);
+  }
+  .frost-panel {
+    background-color: color-mix(in srgb, var(--wb-bg-surface) 86%, transparent);
+  }
+  html.dark .frost-panel {
+    background-color: color-mix(in srgb, var(--wb-bg-elevated) 88%, transparent);
+  }
+}
+
+/* 不支持模糊时退回实底，保证可读 */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .frost {
+    background-color: var(--wb-bg-surface);
+  }
+  html.dark .frost {
+    background-color: var(--wb-bg-elevated);
+  }
+}
+
+/* 内容卡片：不用模糊（卡片多，逐个模糊会掉帧），
+   只做 92% 半透 + 顶部 1px 高光，让页面底色透出来一点点。 */
+.surface {
+  background-color: var(--wb-bg-surface);
+  /* 两层阴影：贴地的接触阴影定轮廓，扩散的环境阴影给悬浮感 */
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.75),
+    0 1px 2px rgba(15, 23, 42, 0.04),
+    0 10px 28px -16px rgba(15, 23, 42, 0.14);
+}
+
+@supports (color: color-mix(in srgb, #fff 50%, transparent)) {
+  .surface {
+    background-color: color-mix(in srgb, var(--wb-bg-surface) 88%, transparent);
+  }
+  html.dark .surface {
+    background-color: color-mix(in srgb, var(--wb-bg-elevated) 88%, transparent);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.06),
+      0 1px 2px rgba(0, 0, 0, 0.35),
+      0 12px 32px -18px rgba(0, 0, 0, 0.6);
+  }
+}
+
+/* 图片在解码完成前给一层极浅底色，避免白块硬闪入（懒加载图片尤其明显） */
+img[loading="lazy"] {
+  background-color: color-mix(in srgb, var(--wb-bg-subtle) 55%, transparent);
+  background-image: linear-gradient(135deg, rgba(0, 0, 0, 0.02), rgba(0, 0, 0, 0));
+}
+
+/* 正文插图：轻微放大 + 阴影，暗示可点开大图 */
+.prose img {
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+.prose img:hover {
+  transform: scale(1.008);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+}
+
+/* 未使用 .wb-pressable 的按钮也给一致的按下反馈，避免"有的弹有的不弹" */
+@media (hover: hover) {
+  button:not(.wb-pressable):not(:disabled):active {
+    scale: 0.985;
+  }
+}
+
+/* 卡片圆角统一为 16px（覆盖各处的 rounded-2xl / rounded-3xl 混用） */
+.surface {
+  border-radius: 16px;
+}
+
+/* 数字等宽：时间、计数、EXP 切换时不再左右跳动 */
+html {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 统一滚动条：全站只有一条 3px 极细滑块，无箭头、无轨道底色。
+   这段位于文件后部，会覆盖前面的同名规则，所以必须与前面保持完全一致。 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--wb-text-muted) 38%, transparent) transparent;
+}
+::-webkit-scrollbar {
+  width: 3px;
+  height: 3px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--wb-text-muted) 38%, transparent);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--wb-text-muted) 68%, transparent);
+}
+::-webkit-scrollbar-button {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* iOS Safari 输入框字号 <16px 时聚焦会自动放大页面，且不会自动缩回。
+   移动端统一拉到 16px，视觉差异极小但不再放大。 */
+@media (max-width: 640px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
+/* 目录跳转：给标题留出顶部导航高度，避免滚过去被盖住 */
+.prose h2,
+.prose h3 {
+  scroll-margin-top: 96px;
+}
+
+/* Markdown 正文排版兜底：
+   本站未启用 @tailwindcss/typography，prose / dark:prose-invert 只是空类名，
+   插件本该提供的「图片限宽、长文本换行、代码块/表格横向滚动」全都不存在。
+   手机端遇到宽图、长 URL 或一长串数字时，内容会撑破容器，
+   而 html/body 的 overflow-x: clip 只会把溢出部分静默裁掉
+   （表现为正文左右两边都被切、图片只露一半）。 */
+.prose {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.prose :is(h1, h2, h3, h4, h5, h6, p, li, blockquote, a, span, td, th, figcaption) {
+  overflow-wrap: anywhere;
+}
+
+.prose img,
+.prose video,
+.prose canvas,
+.prose svg {
+  max-width: 100% !important;
+  height: auto;
+}
+
+/* 代码块与表格允许自己横向滚动，但不能把整篇文章撑宽 */
+.prose pre {
+  max-width: 100%;
+  overflow-x: auto;
+  white-space: pre;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.prose code {
+  overflow-wrap: anywhere;
+}
+
+.prose table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+/* 小图标按钮扩大点击热区（视觉不变，热区 +8px），满足移动端 44px 触控建议 */
+.hit-area {
+  position: relative;
+}
+.hit-area::after {
+  content: '';
+  position: absolute;
+  inset: -8px;
+}
+
+/* ============================================================
+   质感细节：这些参数单看都很小，叠起来才是"精致"与"普通"的差别
+   ============================================================ */
+
+/* 抗锯齿：macOS 上默认的次像素渲染在深色背景会让字发虚 */
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* 大字号收紧字距：字号越大越需要收，否则会显得松散 */
+h1, h2, h3, .text-lg, .text-xl {
+  letter-spacing: -0.012em;
+}
+
+/* 正文行高与中文标点：稍松一点更适合长文阅读 */
+p {
+  text-wrap: pretty;
+}
+
+/* 选区配色跟随主题，避免默认的亮蓝在高饱和背景上刺眼 */
+::selection {
+  background-color: color-mix(in srgb, var(--wb-text-primary) 18%, transparent);
+}
+
+/* ============================================================
+   统一视觉参数：描边、缓动、圆角
+   ============================================================ */
+
+/* 图标描边统一 1.75：1.5 太细显廉价，2 偏重，1.75 是 lucide 官方推荐的视觉平衡点 */
+svg.lucide,
+svg[class*="lucide"] {
+  stroke-width: 1.75;
+}
+
+/* 交互缓动统一：Material 标准曲线，进快出慢，比 ease 更有"物理感" */
+:root {
+  --wb-ease: cubic-bezier(0.2, 0, 0, 1);
+  --wb-ease-spring: cubic-bezier(0.34, 1.3, 0.64, 1);
+}
+
+button,
+a,
+input,
+textarea,
+select,
+[role='button'],
+.wb-pressable {
+  transition-timing-function: var(--wb-ease);
+}
+
+/* 圆角收敛为三档：12 / 16 / 24（对应 rounded-xl / 2xl / 3xl），不再出现任意值 */
+.rounded-\[10px\] { border-radius: 12px; }
+.rounded-\[14px\] { border-radius: 16px; }
+
+/* ==================== 移动端专项优化 ==================== */
+
+/* 1) 触摸响应：去掉 300ms 点击延迟与双击缩放误触 */
+button,
+a,
+[role='button'],
+.wb-pressable,
+label {
+  touch-action: manipulation;
+}
+
+/* 2) 毛玻璃在移动端降级：blur 从 20~28px 降到 8px。
+   手机上大面积 backdrop-filter 是最贵的合成操作之一，滚动时掉帧的主因。 */
+/* 3) iOS 输入框聚焦会因字体 < 16px 自动放大整页，这里统一抬到 16px */
+@media (max-width: 767px) {
+  input:not([type='checkbox']):not([type='radio']):not([type='file']),
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
+/* 4) 滚动链：聊天/抽屉内部滚动到底时不带动整页 */
+@media (max-width: 767px) {
+  .wb-msg-viewport,
+  .overflow-y-auto {
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* 5) 触屏设备没有 hover：取消上浮，改成按压反馈。
+   否则手机上点完按钮会一直保持"浮起"状态，看起来像卡住了。 */
+@media (hover: none) and (pointer: coarse) {
+  .wb-pressable:hover {
+    transform: none;
+  }
+
+  button:not(:disabled):active,
+  a:active,
+  [role='button']:active {
+    opacity: 0.72;
+    transform: scale(0.975);
+  }
+}
+
+/* 6) 小图标按钮的点击热区：视觉尺寸不变，热区外扩 6px。
+   手机上 28px 的图标按钮很难一次点中，这是「不像原生 App」最直接的原因。 */
+@media (max-width: 767px) {
+  /* 只给「没有定位」的按钮加 position:relative 作为热区基准。
+     否则会覆盖 .absolute / .fixed，把浮层按钮（如输入框右上角的展开按钮）
+     拽回文档流，手机端位置全乱。 */
+  button:not(:disabled):not(.absolute):not(.fixed):not(.sticky),
+  [role='button']:not(.absolute):not(.fixed):not(.sticky) {
+    position: relative;
+  }
+
+  button:not(:disabled)::before,
+  [role='button']::before {
+    content: '';
+    position: absolute;
+    inset: -6px;
+    border-radius: inherit;
+  }
+}
+
+/* 例外：整块可点的卡片、输入、开关不要额外热区，避免遮挡其它元素 */
+button.wb-no-hotspot::before,
+label::before {
+  content: none;
+}
+
+/* 细滚动条：用于左栏这类「内容可能超出但需要让用户知道能滚」的区域 */
+.thin-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.16) transparent;
+}
+
+.thin-scrollbar::-webkit-scrollbar {
+  width: 3px;
+  height: 3px;
+}
+
+.thin-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.16);
+  border-radius: 999px;
+}
+
+.thin-scrollbar:hover::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.28);
+}
+
+.dark .thin-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* 文章页移动端视口：正文在固定高度的容器内部滚动。
+   不依赖 body 滚动 —— iOS Safari / 微信内置浏览器对 body 的滚动处理差异很大，
+   一旦 body 被任何弹层或样式锁住，整页就彻底滑不动。 */
+.article-viewport {
+  height: 100vh;
+}
+
+@supports (height: 100dvh) {
+  .article-viewport {
+    height: 100dvh;
+  }
+}
+
+.stealth-media-hint {
+  display: inline-block;
+  opacity: 0;
+  transform: translateY(0.25em);
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+
+[data-message-id]:hover .stealth-media-hint,
+.stealth-media-hint:hover,
+.stealth-media-hint:focus-visible {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stealth-media-hint { transition: none; }
+}
+
+/* 长文阅读区滚动条：全局 3px 细条几乎抓不住，正文单独给一条可拖拽的宽滑块。
+   滑块视觉宽度 6px、可点击命中区 12px（左右各留 3px 透明边框），
+   不挤压内容列宽（scrollbar-gutter 常驻）。移动端不显示，保留原生手势。 */
+.reader-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--wb-text-muted) 45%, transparent) transparent;
+  scrollbar-gutter: stable;
+}
+
+@media (min-width: 1024px) {
+  .reader-scrollbar::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+  }
+
+  .reader-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .reader-scrollbar::-webkit-scrollbar-thumb {
+    background-color: color-mix(in srgb, var(--wb-text-muted) 45%, transparent);
+    border: 3px solid transparent;
+    border-radius: 9999px;
+    background-clip: content-box;
+  }
+
+  .reader-scrollbar:hover::-webkit-scrollbar-thumb {
+    background-color: color-mix(in srgb, var(--wb-text-muted) 75%, transparent);
+  }
+}
+
+@media (max-width: 1023px) {
+  .reader-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .reader-scrollbar::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+}
+
+
+
+
+/* 节日勋章庆祝：撒花与徽章弹入 */
+@keyframes wb-confetti-fall {
+  0%   { transform: translate3d(0, -12vh, 0) rotate(0deg); opacity: 1; }
+  100% { transform: translate3d(0, 112vh, 0) rotate(720deg); opacity: 0; }
+}
+.wb-confetti {
+  position: absolute;
+  top: 0;
+  width: 8px;
+  height: 14px;
+  border-radius: 2px;
+  animation-name: wb-confetti-fall;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+@keyframes wb-pop {
+  0%   { transform: scale(0.4) rotate(-12deg); opacity: 0; }
+  60%  { transform: scale(1.12) rotate(4deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+
+
+/* 勋章：光晕 + hover 扫光 + 按名称的专属微动效 */
+.wb-badge-glow {
+  position: relative;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+.wb-badge-shine {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  pointer-events: none;
+  background: linear-gradient(120deg, transparent 32%, rgba(255, 255, 255, 0.6) 50%, transparent 68%);
+  transform: translateX(-130%);
+}
+.wb-badge-glow:hover .wb-badge-shine { animation: wb-shine 0.9s ease; }
+@keyframes wb-shine { to { transform: translateX(130%); } }
+
+.wb-fx-float { animation: wb-float 3.4s ease-in-out infinite; }
+@keyframes wb-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+
+.wb-fx-shake { animation: wb-shake 3s ease-in-out infinite; }
+@keyframes wb-shake {
+  0%, 88%, 100% { transform: rotate(0deg); }
+  91% { transform: rotate(-9deg); }
+  95% { transform: rotate(9deg); }
+}
+
+.wb-fx-swing { animation: wb-swing 3.6s ease-in-out infinite; }
+@keyframes wb-swing { 0%, 100% { transform: rotate(-7deg); } 50% { transform: rotate(7deg); } }
+
+.wb-fx-spin { animation: wb-spin-slow 9s linear infinite; }
+@keyframes wb-spin-slow { to { transform: rotate(360deg); } }
+
+.wb-fx-pulse { animation: wb-glow-pulse 2.8s ease-in-out infinite; }
+@keyframes wb-glow-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(242, 185, 92, 0); }
+  50% { box-shadow: 0 0 12px 2px rgba(242, 185, 92, 0.35); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wb-fx-float, .wb-fx-shake, .wb-fx-swing, .wb-fx-spin, .wb-fx-pulse { animation: none !important; }
+}
+
+
+/* ---------- 移动端渲染优化 ---------- */
+
+/* 屏幕外的长列表卡片跳过布局与绘制，滚动更省 CPU */
+.wb-cv-auto {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 320px;
+}
+
+/* 小屏 GPU 较弱：把 28px 级别的大面积毛玻璃降到 6px，
+   视觉几乎无差别，但滚动时的合成开销显著下降 */
+@media (max-width: 767px) {
+  [class*='backdrop-blur'] {
+    backdrop-filter: blur(6px) !important;
+    -webkit-backdrop-filter: blur(6px) !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wb-cv-auto { content-visibility: visible; }
+}
+
+
+/* Logo 点击动效：换 key 重播旋转动画 */
+@keyframes wb-logo-spin {
+  from { transform: rotate(0deg) scale(1); }
+  45%  { transform: rotate(200deg) scale(1.15); }
+  to   { transform: rotate(360deg) scale(1); }
+}
+.wb-logo-spin {
+  animation: wb-logo-spin 0.75s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .wb-logo-spin { animation: none !important; }
+}
+
+/* ===== 群聊铭牌：QQ 样式、逐级配色、高级发光、20 级动态渐变 ===== */
+.wb-group-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px 1px 3px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  color: #fff;
+  font-size: 10px;
+  line-height: 1.35;
+  font-weight: 600;
+  white-space: nowrap;
+  vertical-align: middle;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.28);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  transition: translate 0.18s var(--wb-spring-fast), scale 0.18s var(--wb-spring-fast);
+  /* 扫光画在铭牌内部：避免外发光被父容器的 overflow 裁掉，看起来像被截断 */
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+/* 内部扫光：一条斜向高光从左扫到右，高等级与特殊名牌启用 */
+.wb-group-badge::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(
+    115deg,
+    rgba(255, 255, 255, 0) 34%,
+    rgba(255, 255, 255, 0.72) 48%,
+    rgba(255, 255, 255, 0.35) 53%,
+    rgba(255, 255, 255, 0) 66%
+  );
+  background-size: 260% 100%;
+  background-position: -140% 0;
+  opacity: 0;
+}
+
+.wb-group-badge[data-glow="1"]::after {
+  opacity: 1;
+  animation: wb-badge-sweep 3.6s ease-in-out infinite;
+}
+
+@keyframes wb-badge-sweep {
+  0% { background-position: -140% 0; }
+  55%, 100% { background-position: 240% 0; }
+}
+.wb-group-badge:hover { translate: 0 -1px; }
+.wb-group-badge-sm { font-size: 11px; padding: 2px 8px 2px 4px; }
+.wb-group-badge-lv {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 2px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.22);
+  font-family: ui-monospace, monospace;
+  font-size: 9px;
+}
+.wb-group-badge-name { letter-spacing: 0.01em; }
+
+@keyframes wb-badge-glow {
+  0%, 100% { box-shadow: 0 0 3px var(--badge-glow), 0 1px 3px rgba(0,0,0,.12); }
+  50% { box-shadow: 0 0 10px var(--badge-glow), 0 0 18px var(--badge-glow), 0 1px 3px rgba(0,0,0,.12); }
+}
+@keyframes wb-badge-shine {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 300% 50%; }
+}
+.wb-group-badge[data-glow="1"] {
+  animation: wb-badge-glow 2.6s ease-in-out infinite;
+}
+/* 20 级：彩虹流 + 内扫光 + 外发光；渐变首尾同色，位移 300% 无缝循环 */
+.wb-group-badge[data-level="20"] {
+  background: linear-gradient(90deg, #ff5f6d, #ffc371, #47e6b1, #5b8cff, #c86dd7, #ff5f6d);
+  background-size: 300% 100%;
+  border-color: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.28) inset, 0 0 10px rgba(190, 120, 255, 0.55);
+  animation: wb-badge-shine 4s linear infinite, wb-badge-glow 1.8s ease-in-out infinite;
+}
+.wb-group-badge[data-level="20"]::after {
+  opacity: 1;
+  animation: wb-badge-sweep 3.2s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .wb-group-badge,
+  .wb-group-badge[data-glow="1"],
+  .wb-group-badge[data-level="20"] { animation: none !important; }
+  .wb-group-badge::after { animation: none !important; opacity: 0 !important; }
+}
+
+/* 16 级以上：在发光之外再叠一层缓慢渐变流动，等级越高越华丽 */
+.wb-group-badge[data-level="16"],
+.wb-group-badge[data-level="17"],
+.wb-group-badge[data-level="18"],
+.wb-group-badge[data-level="19"] {
+  background-size: 200% auto;
+  animation: wb-badge-shine 5s linear infinite, wb-badge-glow 2.2s ease-in-out infinite;
+}
+
+/* 疯狂星期四：鸡块 / 可乐 / 蛋挞从顶部飘落 */
+@keyframes wb-food-fall {
+  0% { transform: translate3d(0, -12vh, 0) rotate(0deg); opacity: 0; }
+  8% { opacity: 1; }
+  100% { transform: translate3d(0, 112vh, 0) rotate(560deg); opacity: 0; }
+}
+.wb-food-fall { position: absolute; top: 0; will-change: transform; animation: wb-food-fall 3s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .wb-food-fall { animation: none; opacity: 0; } }
+
+/* AI 情绪强度滑块：与黑白钛主题一致 */
+.wb-range { -webkit-appearance: none; appearance: none; height: 6px; border-radius: 999px;
+  background: var(--wb-bg-subtle, #eceff2); border: 1px solid var(--wb-border-subtle, #dfe3e8);
+  cursor: pointer; }
+.wb-range::-webkit-slider-thumb { -webkit-appearance: none; appearance: none;
+  width: 16px; height: 16px; border-radius: 50%; background: var(--wb-text-primary, #1a1d21);
+  border: 2px solid var(--wb-bg-page, #fff); box-shadow: 0 1px 4px rgba(0,0,0,.25);
+  transition: scale .15s ease; }
+.wb-range::-webkit-slider-thumb:hover { scale: 1.15; }
+.wb-range::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%;
+  background: var(--wb-text-primary, #1a1d21); border: 2px solid var(--wb-bg-page, #fff); }
+
+/* ===== 纯 CSS 3D 骰子（无 ThreeJS / WebGL） ===== */
+.wb-dice { perspective: 420px; flex-shrink: 0; }
+.wb-dice__cube {
+  position: relative; width: 100%; height: 100%;
+  transform-style: preserve-3d;
+  transition: transform 1.25s cubic-bezier(.2,.75,.25,1);
+  will-change: transform;
+}
+.wb-dice__cube--rolling { transition: transform 1.25s cubic-bezier(.16,.9,.3,1); }
+.wb-dice__face {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 22%;
+  background: linear-gradient(145deg, #fffdf8, #e9e5db);
+  border: 2px solid rgba(0,0,0,.16);
+  box-shadow: inset 0 2px 5px rgba(255,255,255,.9), inset 0 -3px 6px rgba(0,0,0,.10);
+  /* 背对观察者的面不渲染：立方体外观才正确（否则会透出背面点阵） */
+  backface-visibility: hidden;
+}
+.wb-dice__grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr);
+  width: 72%; height: 72%; gap: 2%;
+}
+.wb-dice__pip, .wb-dice__empty { display: block; border-radius: 50%; }
+.wb-dice__pip {
+  place-self: center; width: 72%; height: 72%;
+  background: radial-gradient(circle at 34% 30%, #4a4f57, #111418 72%);
+  box-shadow: inset 0 1px 1px rgba(255,255,255,.35), 0 1px 1px rgba(0,0,0,.25);
+}
+.wb-dice__empty { opacity: 0; }
+.wb-dice__face--front  { transform: translateZ(calc(var(--dice-half, 28px))); }
+.wb-dice__face--back   { transform: rotateY(180deg) translateZ(calc(var(--dice-half, 28px))); }
+.wb-dice__face--right  { transform: rotateY(90deg)  translateZ(calc(var(--dice-half, 28px))); }
+.wb-dice__face--left   { transform: rotateY(-90deg) translateZ(calc(var(--dice-half, 28px))); }
+.wb-dice__face--top    { transform: rotateX(90deg)  translateZ(calc(var(--dice-half, 28px))); }
+.wb-dice__face--bottom { transform: rotateX(-90deg) translateZ(calc(var(--dice-half, 28px))); }
+
+/* ===== 每日求签卡片：5 种样式，好运时炫彩 ===== */
+.fortune-card {
+  position: relative; width: 100%; max-width: 22rem; padding: 1px;
+  border-radius: 26px; overflow: hidden; color: #23262b;
+  box-shadow: 0 24px 70px rgba(0,0,0,.45);
+  animation: wb-pop .45s cubic-bezier(.2,.9,.3,1.2) both;
+}
+.fortune-card__inner { border-radius: 25px; padding: 1.6rem 1.4rem; text-align: center; position: relative; }
+.fortune-card button { color: inherit; }
+.fortune-plain .fortune-card__inner { background: linear-gradient(160deg,#fafbfc,#e9edf1); }
+.fortune-soft  .fortune-card__inner { background: linear-gradient(160deg,#f3fbf5,#dcf0e3); }
+.fortune-warm  .fortune-card__inner { background: linear-gradient(160deg,#fff5ea,#f7e2c8); }
+.fortune-glow  .fortune-card__inner { background: linear-gradient(160deg,#fff9e8,#ffe6b8); }
+.fortune-glow { box-shadow: 0 0 26px rgba(244,190,90,.6), 0 24px 70px rgba(0,0,0,.4); }
+.fortune-holo { background: linear-gradient(120deg,#ff6b9d,#ffc371,#62e6b4,#6b8cff,#c86dd7,#ff6b9d);
+  background-size: 300% auto; animation: wb-badge-shine 3.5s linear infinite, wb-pop .45s cubic-bezier(.2,.9,.3,1.2) both;
+  box-shadow: 0 0 42px rgba(180,120,255,.7), 0 24px 70px rgba(0,0,0,.45); }
+.fortune-holo .fortune-card__inner { background: rgba(255,255,255,.90); color: #1d2026; }
+.fortune-holo::after { content: ''; position: absolute; inset: -50%; pointer-events: none;
+  background: radial-gradient(circle at 30% 20%, rgba(255,255,255,.7), transparent 45%);
+  animation: wb-fortune-sheen 4s ease-in-out infinite; }
+@keyframes wb-fortune-sheen { 0%,100% { transform: translate(-12%,-10%); } 50% { transform: translate(12%,10%); } }
+@media (prefers-reduced-motion: reduce) {
+  .fortune-card, .fortune-holo, .fortune-holo::after { animation: none !important; }
+}
+
+/* 群聊长列表：屏外消息跳过布局/绘制，显著减少加载与滚动时的掉帧 */
+.wb-msg-list > div { content-visibility: auto; contain-intrinsic-size: auto 96px; }
+@media (prefers-reduced-motion: reduce) { .wb-msg-list > div { content-visibility: visible; } }
+
+@keyframes wb-dice-land {
+  0% { scale: 1; }
+  55% { scale: 1.06; }
+  100% { scale: 1; }
+}
+.wb-dice[data-animated="true"] .wb-dice__cube:not(.wb-dice__cube--rolling) { animation: wb-dice-land .34s cubic-bezier(.2,.9,.3,1.2) both; }
+@media (prefers-reduced-motion: reduce) {
+  .wb-dice__cube, .wb-dice[data-animated="true"] .wb-dice__cube:not(.wb-dice__cube--rolling) { animation: none !important; transition: none !important; }
+}
+
+
+/* 签到卡片：自带背景与显式文字色，避免叠在自己消息气泡上出现「同色叠同色」 */
+.wb-checkin-card {
+  background: var(--wb-bg-surface, #161a22);
+  color: var(--wb-text-primary, #f8fafc);
+  border: 1px solid rgba(34, 197, 94, .42);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .14);
+}
+.wb-checkin-card .wb-checkin-sub { color: var(--wb-text-secondary, #a8b0be); opacity: 1; }
+
+/* Markdown 表格：项目未启用 @tailwindcss/typography，需手工补齐视觉样式 */
+.wb-md-table-wrap { width: 100%; max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 1rem 0; }
+.prose table.wb-md-table { display: table; width: 100%; border-collapse: collapse; margin: 0; font-size: .9em; }
+.prose table.wb-md-table thead { background: var(--wb-bg-subtle, rgba(127,127,127,.10)); }
+.prose table.wb-md-table th,
+.prose table.wb-md-table td {
+  border: 1px solid var(--wb-border-subtle, rgba(127,127,127,.28));
+  padding: .5rem .7rem;
+  text-align: left;
+  vertical-align: top;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+.prose table.wb-md-table th { font-weight: 700; color: var(--wb-text-primary, inherit); white-space: nowrap; }
+.prose table.wb-md-table tbody tr:nth-child(even) { background: rgba(127,127,127,.06); }
+.prose table.wb-md-table tbody tr:hover { background: rgba(127,127,127,.11); }
+
+/* 首页专区文章自定义拖拽排序：目标卡片高亮 */
+article[data-drag-over="true"] { outline: 2px dashed var(--wb-brand, #6366f1); outline-offset: 2px; border-radius: 1.5rem; }
+
+/* ==================== 专业版门户全局皮肤 ====================
+   只在专业版生效；经典版完全不受影响。用「密度 / 圆角 / 边框」而非布局重写，
+   避免动到任何页面的功能结构与 sticky 容器。 */
+[data-portal="pro"] .surface,
+[data-portal="pro"] .rounded-3xl {
+  border-radius: 14px;
+}
+[data-portal="pro"] .shadow-card {
+  box-shadow: 0 2px 14px -8px rgba(15, 23, 42, 0.30);
+}
+[data-portal="pro"] .rounded-capsule {
+  border-radius: 10px;
+}
+[data-portal="pro"] .p-5.rounded-3xl,
+[data-portal="pro"] .p-6.rounded-3xl {
+  padding: 1rem;
+}
+[data-portal="pro"] .border-wb-border-subtle {
+  border-color: rgba(120, 130, 150, 0.22);
+}
+/* 专业版顶栏为通栏 sticky，正文留白略收紧 */
+[data-portal="pro"] main {
+  padding-top: 0.25rem;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-portal="pro"] * { scroll-behavior: auto !important; }
+}
+
+/* ==================== 专业版聊天：摸鱼终端日志伪装 ====================
+   只在 data-stealth="true" 的消息视窗内生效；经典版与普通气泡完全不受影响。 */
+.wb-msg-viewport[data-stealth="true"] [data-stealth-row] {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: flex-start !important;
+  gap: 0.5rem !important;
+  padding: 1px 8px !important;
+  border-radius: 4px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  ring: 0 !important;
+}
+.wb-msg-viewport[data-stealth="true"] [data-stealth-row]:hover { background: rgba(0, 0, 0, .05) !important; }
+.dark .wb-msg-viewport[data-stealth="true"] [data-stealth-row]:hover { background: rgba(255, 255, 255, .05) !important; }
+/* 头像 / 表情图 / 气泡装饰全部让位给纯文本日志 */
+.wb-msg-viewport[data-stealth="true"] [data-stealth-row] img,
+.wb-msg-viewport[data-stealth="true"] [data-stealth-row] svg { display: none !important; }
+.wb-msg-viewport[data-stealth="true"] [data-stealth-row] [class*="rounded-2xl"] {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  max-width: 100% !important;
+  color: #059669 !important;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace !important;
+  font-size: 12px !important;
+  line-height: 1.5 !important;
+}
+.dark .wb-msg-viewport[data-stealth="true"] [data-stealth-row] [class*="rounded-2xl"] { color: #34d399 !important; }
+.wb-msg-viewport[data-stealth="true"] [data-stealth-row] [class*="text-3xs"] {
+  color: #6b7280 !important;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace !important;
+}
+
+/* ===== 棋类对战：最近一手落点高亮 =====
+ * 对方落子：闪 3 次后停在“静态描边”（动画结束回到基线样式）；
+ * 自己落子：只短闪 1 次，避免自己盯棋盘时被晃。
+ * 用 scale + opacity，不改变布局尺寸，不会把棋子/格子顶动。
+ */
+@keyframes battle-lastmove {
+  0%, 100% { opacity: 0.35; transform: scale(0.86); }
+  45%      { opacity: 1;    transform: scale(1.08); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* 省电/晕动敏感：不闪，直接显示静态描边 */
+  [class*="battle-lastmove"] { animation: none !important; }
+}
+
+/* ===== 棋类对战：嘲讽卡片 / 胜负卡片（呼应每日求签卡片） ===== */
+.battle-card {
+  position: relative; width: 100%; max-width: 20rem; padding: 1px;
+  border-radius: 22px; overflow: hidden; color: #23262b;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, .45);
+}
+.battle-card__inner { border-radius: 21px; padding: 1.2rem 1.15rem; text-align: center; position: relative; }
+.battle-card--taunt .battle-card__inner { background: linear-gradient(160deg, #fff4e8, #ffd7bd); }
+.battle-card--win .battle-card__inner { background: linear-gradient(160deg, #fff9e8, #ffe1a8); }
+.battle-card--win { box-shadow: 0 0 34px rgba(240, 190, 80, .55), 0 24px 70px rgba(0, 0, 0, .45); }
+.battle-card--lose .battle-card__inner { background: linear-gradient(160deg, #eef1f6, #ccd4e0); }
+.battle-card--draw .battle-card__inner { background: linear-gradient(160deg, #eefbf3, #cfeadd); }
+.battle-card__emoji {
+  font-size: 52px; line-height: 1; display: block; margin-bottom: .35rem;
+  animation: battle-card-emoji .6s cubic-bezier(.2, .9, .3, 1.4) both;
+}
+/* 嘲讽卡：闪入 → 停留 2.5s → 自动淡出（组件 2.9s 后卸载） */
+.battle-taunt-pop {
+  animation: battle-card-in .42s cubic-bezier(.2, .9, .3, 1.15) both,
+             battle-card-out .34s ease-in 2.5s both;
+}
+.battle-result-pop { animation: battle-card-in .45s cubic-bezier(.2, .9, .3, 1.15) both; }
+@keyframes battle-card-in {
+  0%   { opacity: 0; transform: translateY(16px) scale(.8) rotate(-4deg); }
+  60%  { opacity: 1; transform: translateY(-5px) scale(1.05) rotate(1.5deg); }
+  100% { opacity: 1; transform: none; }
+}
+@keyframes battle-card-out { to { opacity: 0; transform: translateY(-10px) scale(.94); } }
+@keyframes battle-card-emoji {
+  0%   { transform: scale(.4) rotate(-12deg); opacity: 0; }
+  70%  { transform: scale(1.12) rotate(4deg); opacity: 1; }
+  100% { transform: none; opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .battle-taunt-pop, .battle-result-pop, .battle-card__emoji { animation: none !important; }
+}

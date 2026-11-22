@@ -1,0 +1,26 @@
+{
+  "name": "极客社区 · Geek Community",
+  "short_name": "极客社区",
+  "description": "现代技术架构与工程实践社区：深度文章、即时私聊、荣誉成就。",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#06070a",
+  "theme_color": "#06070a",
+  "lang": "zh-CN",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "192x192 512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

@@ -1,0 +1,41 @@
+name: Bug 报告
+description: 功能异常 / 报错 / 显示错误
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        提交前请先搜索已有 Issue。安全问题请勿公开提交，见 SECURITY.md。
+  - type: textarea
+    id: what
+    attributes:
+      label: 现象
+      description: 发生了什么？期望是什么？
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      placeholder: |
+        1. 打开…
+        2. 点击…
+        3. 看到…
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: 版本 / 提交
+      description: 页面底部版本号或 git commit
+  - type: input
+    id: env
+    attributes:
+      label: 环境
+      description: 浏览器、操作系统、是否 Docker 部署
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志 / 截图
+      render: shell

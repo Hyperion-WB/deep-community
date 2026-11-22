@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="robots" content="noindex, nofollow" />
+<title>临时访问说明 · DeepCommunity</title>
+<style>
+  :root{
+    --bg:#0b0c0e; --card:#141619; --line:#262a2f; --text:#e8eaed;
+    --muted:#9aa0a6; --accent:#7cc4ff; --warn:#f5c451;
+  }
+  @media (prefers-color-scheme: light){
+    :root{ --bg:#f5f6f7; --card:#fff; --line:#e3e5e8; --text:#15171a; --muted:#6b7280; --accent:#1a6fb4; --warn:#b4791a; }
+  }
+  *{ box-sizing:border-box; }
+  body{
+    margin:0; min-height:100vh; background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    display:flex; align-items:center; justify-content:center; padding:24px; line-height:1.7;
+    background-image:radial-gradient(1100px 560px at 50% -10%, rgba(124,196,255,.10), transparent 60%);
+  }
+  .card{
+    width:100%; max-width:640px; background:var(--card);
+    border:1px solid var(--line); border-radius:20px; padding:34px 30px 26px;
+    box-shadow:0 24px 60px rgba(0,0,0,.32);
+  }
+  .badge{
+    display:inline-flex; align-items:center; gap:8px; font-size:12px; font-weight:600; letter-spacing:.04em;
+    color:var(--accent); border:1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+    background:color-mix(in srgb, var(--accent) 12%, transparent);
+    padding:5px 11px; border-radius:999px; margin-bottom:18px;
+  }
+  .dot{ width:7px; height:7px; border-radius:50%; background:var(--accent); }
+  h1{ font-size:25px; line-height:1.32; margin:0 0 10px; letter-spacing:-.01em; }
+  p{ margin:0 0 14px; font-size:14.5px; color:var(--text); }
+  p.muted{ color:var(--muted); }
+  ol{ margin:0 0 20px; padding-left:20px; font-size:14px; }
+  ol li{ margin-bottom:8px; }
+  .tip{
+    border:1px solid color-mix(in srgb, var(--warn) 35%, transparent);
+    background:color-mix(in srgb, var(--warn) 10%, transparent);
+    border-radius:12px; padding:12px 14px; font-size:13.5px; margin:18px 0;
+  }
+  .meta{ border-top:1px solid var(--line); margin-top:8px; padding-top:16px; font-size:13px; color:var(--muted); display:grid; gap:6px; }
+  .meta b{ color:var(--text); }
+  a{ color:var(--accent); text-decoration:none; }
+  a:hover{ text-decoration:underline; }
+  code{ font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:12.5px; }
+</style>
+</head>
+<body>
+  <main class="card">
+    <span class="badge"><span class="dot"></span>临时访问说明</span>
+    <h1>站点已恢复，但部分网络可能仍无法访问</h1>
+
+    <p>
+      我们正在更换 CDN / DNS 接入方式，域名解析在全球生效需要一段时间（通常 10 分钟 ~ 1 小时）。
+      如果你打开页面异常、空白或提示连接失败，通常是本地 DNS 缓存还没更新。
+    </p>
+
+    <ol>
+      <li>先试 <code>www.example.com</code>（该子域已指向新服务器，通常最快恢复）。</li>
+      <li>再试 <code>https://example.com</code>；若仍是旧页面，请清理本地 DNS 缓存。</li>
+      <li>手机可切换一次飞行模式，或 Wi-Fi / 蜂窝网络互换后再试。</li>
+    </ol>
+
+    <div class="tip">
+      清理 DNS 缓存：Windows <code>ipconfig /flushdns</code>；macOS <code>sudo dscacheutil -flushcache</code>；
+      Chrome 可打开 <code>chrome://net-internals/#dns</code> 点 Clear host cache。
+    </div>
+
+    <div class="meta">
+      <div>当前状态：<b>服务已恢复，等待解析生效</b></div>
+      <div>反馈渠道：<a href="mailto:admin@example.com">admin@example.com</a></div>
+      <div>提示：本页不会缓存，可随时刷新查看最新状态。</div>
+    </div>
+  </main>
+</body>
+</html>
