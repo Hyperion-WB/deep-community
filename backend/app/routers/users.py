@@ -41,18 +41,61 @@ router = APIRouter(prefix="/users", tags=["用户与成长"])
 MAKEUP_MILESTONES = [5, 10, 15, 25]
 
 
+def _peak_real_streak_in_month(dates, makeup_dates, month_start) -> int:
+    """当月内达到过的「真实连续签到」最高天数。
+
+    补签日不计入连签奖励：先剔除补签日期，再按真实日期重算连续段；
+    跨月的连续段保留累计（例如上月已连 20 天，本月第 1 天就记为 20）。
+    """
+    real = [d for d in dates if d not in makeup_dates]
+    peak = 0
+    run = 0
+    prev = None
+    for d in real:
+        run = run + 1 if prev is not None and d == prev + timedelta(days=1) else 1
+        prev = d
+        if d >= month_start and run > peak:
+            peak = run
+    return peak
+
+
 async def _makeup_quota(db: AsyncSession, user_id) -> tuple[int, int, int]:
-    """返回 (已获得, 已使用, 剩余) 补签次数。"""
+    """返回 (本月可获得, 本月已使用, 本月剩余) 补签卡。
+
+    - 奖励按「真实签到」的连签里程碑计算，补签日不计入；
+    - 额度按自然月重置：每月 1 号重新计算可获得张数，已用量只统计本月消耗的卡。
+    """
     from sqlalchemy import text
 
-    best = (await db.execute(
-        select(func.max(Checkin.continuous_days)).where(Checkin.user_id == user_id)
-    )).scalar() or 0
-    earned = sum(1 for m in MAKEUP_MILESTONES if int(best) >= m)
-    used = (await db.execute(
-        text("SELECT count(*) FROM checkin_makeups WHERE user_id = :uid"), {"uid": str(user_id)}
-    )).scalar() or 0
-    return earned, int(used), max(0, earned - int(used))
+    rows = (await db.execute(
+        text("SELECT target_date, created_at FROM checkin_makeups WHERE user_id = :uid"),
+        {"uid": str(user_id)},
+    )).all()
+    makeup_dates = {r[0] for r in rows}
+    dates = (await db.execute(
+        select(Checkin.checkin_date)
+        .where(Checkin.user_id == user_id)
+        .order_by(Checkin.checkin_date.asc())
+    )).scalars().all()
+
+    today = date.today()
+    month_start = today.replace(day=1)
+    peak = _peak_real_streak_in_month(dates, makeup_dates, month_start)
+    earned = sum(1 for m in MAKEUP_MILESTONES if peak >= m)
+
+    # 本月消耗的卡按「使用时间」统计，而不是补签的目标日期：
+    # 本月补签上个月的漏签，也应该扣本月的额度。
+    tz = datetime.now().astimezone().tzinfo
+    month_start_utc = datetime(month_start.year, month_start.month, 1, tzinfo=tz).astimezone(timezone.utc)
+    used = 0
+    for _target, created in rows:
+        if not created:
+            continue
+        if created.tzinfo is None:
+            created = created.replace(tzinfo=timezone.utc)
+        if created.astimezone(timezone.utc) >= month_start_utc:
+            used += 1
+    return earned, used, max(0, earned - used)
 
 
 def _nickname_change_remaining(user: User) -> int:
@@ -181,6 +224,8 @@ async def checkin_status(user: User = Depends(get_current_user), db: AsyncSessio
         "makeup_earned": earned,
         "makeup_used": used,
         "makeup_left": left,
+        # 额度按月重置：前端据此显示「YYYY-MM 额度」，跨月自动变成新月份
+        "makeup_period": today.strftime("%Y-%m"),
         "milestones": MAKEUP_MILESTONES,
         # 补签边界：注册之前没有「漏签」概念，前端据此禁用不可补的日期
         "makeup_since": max(registered_date, today - timedelta(days=180)).isoformat(),

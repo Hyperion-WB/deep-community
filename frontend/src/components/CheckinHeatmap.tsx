@@ -162,14 +162,14 @@ export const CheckinHeatmap: React.FC<Props> = ({ username, canMakeup = false })
     }
     if (makeupLeft <= 0) {
       toast.info(
-        `补签卡不足：连续签到 ${milestones.join(' / ')} 天各可获得一张，当前为 0 张`
+        `补签卡不足：本月可获得 0 张（连续签到 ${milestones.join(' / ')} 天各 +1 张，每月 1 号重置，补签日不计入）`
       );
       return;
     }
 
     const ok = await confirm({
       title: '使用补签卡',
-      description: `补签 ${cell.date}（消耗 1 张补签卡，剩余 ${makeupLeft} 张）。\n补签会立即计入连续签到天数，且不可撤销。`,
+      description: `补签 ${cell.date}（消耗 1 张补签卡，本月剩余 ${makeupLeft} 张）。\n补签会计入连续签到天数，但补签日不计入连签奖励；操作不可撤销。`,
       confirmText: '确认补签',
       cancelText: '再想想',
     });
@@ -231,10 +231,10 @@ export const CheckinHeatmap: React.FC<Props> = ({ username, canMakeup = false })
                   ? 'bg-wb-brand/10 text-wb-brand'
                   : 'bg-wb-bg-subtle text-wb-text-muted'
               }`}
-              title={`连续签到 ${milestones.join(' / ')} 天各获得 1 张补签卡`}
+              title={`每月按真实连签发放：连续签到 ${milestones.join(' / ')} 天各 +1 张，每月 1 号重置`}
             >
               <Ticket className="w-3 h-3" />
-              补签卡 {makeupLeft}
+              本月补签卡 {makeupLeft}
             </span>
           )}
           <button
@@ -346,7 +346,7 @@ export const CheckinHeatmap: React.FC<Props> = ({ username, canMakeup = false })
 
       {canMakeup && (
         <p className="text-[10px] leading-relaxed text-wb-text-muted">
-          补签卡：连续签到 {milestones.join(' / ')} 天各获得 1 张，
+          补签卡：每月按「真实连签」发放，连续签到 {milestones.join(' / ')} 天各 +1 张，1 号重置；补签日不计入连签奖励，
           {makeupSince ? `可补 ${makeupSince} 至 ${makeupEnd}` : `可补至 ${makeupEnd}`}，每次消耗 1 张且不可撤销。
           {makeupLeft <= 0 && ' 当前没有补签卡，继续签到积攒连击即可获得。'}
         </p>
