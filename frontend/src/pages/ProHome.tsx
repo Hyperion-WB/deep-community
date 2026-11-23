@@ -406,15 +406,10 @@ export const ProHome: React.FC<ProHomeProps> = ({
   };
 
   return (
-    <div className="max-w-[1560px] mx-auto px-2 sm:px-4 py-2 sm:py-3 pb-32 sm:pb-8 flex gap-4 sm:gap-5 items-start w-full transition-all">
-      {/* 1. 左侧工作台与导航 (桌面端 w-52 规整列出) */}
-      <aside className="w-52 shrink-0 hidden md:block space-y-3.5 select-none sticky top-16">
-        {/* 技术分区 */}
-        <div className="bg-wb-bg-surface rounded-xl border border-wb-border-subtle p-2 shadow-2xs space-y-1">
-          <div className="px-3 py-1.5 text-3xs font-bold text-wb-text-muted uppercase tracking-wider flex items-center justify-between">
-            <span>技术分区</span>
-            <span className="font-mono text-[9px] bg-wb-bg-subtle px-1 rounded">PRO</span>
-          </div>
+    <div className="mx-auto grid w-full max-w-[1488px] grid-cols-[minmax(0,1fr)] items-start gap-4 px-3 py-4 sm:px-6 sm:py-6 md:grid-cols-[11rem_minmax(0,1fr)] lg:gap-5 xl:grid-cols-[12rem_minmax(0,1fr)_16rem] 2xl:grid-cols-[13rem_minmax(0,1fr)_18rem]">
+      <aside aria-label="技术分区与快捷工作台" className="hidden space-y-4 md:sticky md:top-16 md:block">
+        <section className="space-y-1.5 rounded-2xl border border-wb-border-subtle bg-wb-bg-surface p-2.5">
+          <h2 className="px-3 pb-1 pt-2 text-xs font-semibold text-wb-text-secondary">技术分区</h2>
           {categories.map((cat) => {
             const isActive = selectedCategory === cat;
             return (
@@ -422,24 +417,22 @@ export const ProHome: React.FC<ProHomeProps> = ({
                 key={cat}
                 type="button"
                 onClick={() => setSelectedCategory(cat)}
-                className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                aria-pressed={isActive}
+                className={`flex min-h-9 w-full items-center justify-between rounded-lg px-3 py-1.5 text-left text-xs font-medium transition-colors ${
                   isActive
-                    ? 'bg-wb-text-primary text-wb-bg-page font-semibold shadow-xs'
-                    : 'text-wb-text-secondary hover:text-wb-text-primary hover:bg-wb-bg-subtle'
+                    ? 'bg-wb-brand/10 font-semibold text-wb-brand'
+                    : 'text-wb-text-secondary hover:bg-wb-bg-subtle hover:text-wb-text-primary'
                 }`}
               >
                 <span>{cat}</span>
-                {isActive && <ChevronRight className="w-3 h-3 opacity-80" />}
+                {isActive && <ChevronRight className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
               </button>
             );
           })}
-        </div>
+        </section>
 
-        {/* 快捷工作台 */}
-        <div className="bg-wb-bg-surface rounded-xl border border-wb-border-subtle p-3 shadow-2xs space-y-2">
-          <div className="text-3xs font-bold text-wb-text-muted uppercase tracking-wider">
-            快捷工作台
-          </div>
+        <section className="space-y-2 rounded-2xl border border-wb-border-subtle bg-wb-bg-surface p-3">
+          <h2 className="px-2 pt-1 text-xs font-semibold text-wb-text-secondary">快捷工作台</h2>
           <div className="space-y-1">
             <button
               type="button"
@@ -473,85 +466,79 @@ export const ProHome: React.FC<ProHomeProps> = ({
               <span>{hasCheckedInToday ? `今日已打卡 (${checkinStreak}天)` : '今日签到'}</span>
             </button>
           </div>
-        </div>
+        </section>
 
-        {/* 友情链接 (真实对齐后端接口，支持深情友链) */}
+        {/* 友情链接 */}
         <FriendLinksCard variant="sidebar" onOpenAll={onOpenLinks} />
 
-        {/* 极客自治公约 */}
-        <div className="bg-wb-bg-surface rounded-xl border border-wb-border-subtle p-3 shadow-2xs space-y-2 text-xs">
-          <div className="flex items-center justify-between">
-            <h4 className="font-semibold text-xs text-wb-text-primary flex items-center gap-1.5">
-              <Shield className="w-3.5 h-3.5 text-wb-text-muted" />
-              <span>极客自治公约</span>
-            </h4>
-            <span className="text-3xs text-wb-text-muted font-mono">v4.2</span>
-          </div>
-          <p className="text-wb-text-muted text-3xs leading-relaxed">
-            以实证与代码为基石，纯粹技术探讨，守护开源交流净土。
-          </p>
-          <div className="pt-1.5 border-t border-wb-border-subtle/60 space-y-1 text-3xs">
-            <div
-              onClick={onGoRules}
-              className="text-wb-text-secondary hover:text-wb-text-primary hover:underline cursor-pointer flex items-center justify-between"
-            >
-              <span>入站必读规范</span>
-              <span>&rarr;</span>
-            </div>
-            <div
-              onClick={onGoLegal}
-              className="text-wb-text-secondary hover:text-wb-text-primary hover:underline cursor-pointer flex items-center justify-between"
-            >
-              <span>免责与开源声明</span>
-              <span>&rarr;</span>
-            </div>
-          </div>
-        </div>
-      </aside>
-
-      {/* 2. 中间主信息流 */}
-      <div className="flex-1 min-w-0 space-y-3.5">
-        {/* 每日极客早报通栏卡片 (自适应响应式，绝不粗暴截断) */}
-        <div className="bg-wb-bg-surface rounded-xl border border-wb-border-subtle p-3 sm:p-3.5 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3">
-          <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
-            <span className="px-1.5 sm:px-2 py-0.5 rounded bg-wb-text-primary text-wb-bg-page text-3xs font-semibold shrink-0">
-              <span className="hidden sm:inline">每日早报·首要要闻</span>
-              <span className="sm:hidden">早报</span>
-            </span>
-            <span className="text-3xs text-wb-text-muted font-mono shrink-0 hidden sm:inline">
-              {newsPost?.created_at ? formatEast8Date(newsPost.created_at) : '今日'}
-            </span>
-            <p
-              onClick={() => newsPost && onSelectPost(newsPost.id)}
-              className="text-xs text-wb-text-primary font-medium truncate cursor-pointer hover:underline flex-1 min-w-0"
-            >
-              {newsPost?.title || '今日暂无早报'}
-            </p>
-          </div>
-          <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
-            {isAdmin && onGoWriteDaily && (
-              <button
-                type="button"
-                onClick={onGoWriteDaily}
-                className="text-3xs text-blue-500 hover:underline cursor-pointer"
-              >
-                写新早报
-              </button>
-            )}
+        <section className="space-y-2 rounded-2xl border border-wb-border-subtle bg-wb-bg-surface p-3">
+          <h2 className="flex items-center gap-2 px-2 pt-1 text-xs font-semibold text-wb-text-secondary">
+            <Shield className="h-3.5 w-3.5" aria-hidden="true" />
+            极客自治公约
+          </h2>
+          <div className="space-y-1">
             <button
               type="button"
-              onClick={() => newsPost && onSelectPost(newsPost.id)}
-              className="text-3xs text-wb-text-muted hover:text-wb-text-primary flex items-center gap-0.5 shrink-0 select-none cursor-pointer"
+              onClick={onGoRules}
+              className="flex min-h-9 w-full items-center justify-between gap-2 rounded-lg px-2 text-left text-xs text-wb-text-secondary hover:bg-wb-bg-subtle hover:text-wb-text-primary"
             >
-              <span>立即阅读</span>
-              <ChevronRight className="w-3.5 h-3.5" />
+              入站必读规范
+              <ChevronRight className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              onClick={onGoLegal}
+              className="flex min-h-9 w-full items-center justify-between gap-2 rounded-lg px-2 text-left text-xs text-wb-text-secondary hover:bg-wb-bg-subtle hover:text-wb-text-primary"
+            >
+              免责与开源声明
+              <ChevronRight className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             </button>
           </div>
-        </div>
+        </section>
+      </aside>
 
-        {/* 移动端专享：水平横滑技术分区胶囊栏 */}
-        <div className="md:hidden relative -mx-2 px-2 py-0.5">
-          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 select-none">
+      <section aria-labelledby="pro-feed-heading" className="min-w-0 space-y-4">
+        <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-1">
+          <div className="min-w-0">
+            <h1 id="pro-feed-heading" className="text-2xl font-bold tracking-tight text-wb-text-primary sm:text-3xl">社区动态</h1>
+            <p className="mt-1 text-xs text-wb-text-secondary" aria-live="polite">{selectedCategory === '全部' ? '全部分区' : selectedCategory} · 共 {displayTotal} 篇</p>
+          </div>
+          {onGoFeedback && (
+            <button type="button" onClick={onGoFeedback} className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-wb-border-subtle bg-wb-bg-surface px-3 text-xs font-semibold text-wb-text-secondary hover:text-wb-text-primary md:hidden">
+              <MessageSquare className="h-4 w-4" aria-hidden="true" />
+              反馈建议
+            </button>
+          )}
+        </header>
+
+        <section className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl border border-wb-brand/20 bg-wb-bg-surface p-3 sm:p-4">
+          <div className="flex min-w-0 flex-1 basis-44 items-center gap-3">
+            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-wb-brand/10 text-wb-brand">
+              <FileText className="h-4 w-4" aria-hidden="true" />
+            </div>
+            <div className="min-w-0">
+              <h2 className="text-xs font-semibold text-wb-brand">每日早报</h2>
+              <p className="mt-0.5 break-words text-sm font-semibold text-wb-text-primary">{newsPost?.title || '今日暂无早报'}</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1">
+            {newsPost?.created_at && (
+              <time dateTime={newsPost.created_at} className="hidden text-xs tabular-nums text-wb-text-muted lg:inline">{formatEast8Date(newsPost.created_at)}</time>
+            )}
+            {isAdmin && onGoWriteDaily && (
+              <button type="button" onClick={onGoWriteDaily} className="min-h-9 text-xs font-semibold text-wb-brand hover:underline">写新早报</button>
+            )}
+            {newsPost && (
+              <button type="button" onClick={() => onSelectPost(newsPost.id)} className="inline-flex min-h-9 items-center gap-0.5 rounded-lg bg-wb-brand/10 px-2.5 text-xs font-semibold text-wb-brand hover:bg-wb-brand/20">
+                阅读早报
+                <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
+              </button>
+            )}
+          </div>
+        </section>
+
+        <div role="group" aria-label="技术分区" className="md:hidden">
+          <div className="flex flex-wrap items-center gap-1.5">
             {categories.map((cat) => {
               const isActive = selectedCategory === cat;
               return (
@@ -559,10 +546,11 @@ export const ProHome: React.FC<ProHomeProps> = ({
                   key={cat}
                   type="button"
                   onClick={() => setSelectedCategory(cat)}
-                  className={`h-7 px-3 rounded-lg text-xs font-medium whitespace-nowrap shrink-0 transition-all cursor-pointer ${
+                  aria-pressed={isActive}
+                  className={`min-h-9 shrink-0 whitespace-nowrap rounded-lg border px-2.5 text-xs font-medium transition-colors ${
                     isActive
-                      ? 'bg-wb-text-primary text-wb-bg-page font-bold shadow-xs'
-                      : 'bg-wb-bg-surface text-wb-text-secondary border border-wb-border-subtle active:bg-wb-bg-subtle'
+                      ? 'border-wb-brand/20 bg-wb-brand/10 font-semibold text-wb-brand'
+                      : 'border-wb-border-subtle bg-wb-bg-surface text-wb-text-secondary hover:bg-wb-bg-subtle'
                   }`}
                 >
                   {cat}
@@ -572,10 +560,8 @@ export const ProHome: React.FC<ProHomeProps> = ({
           </div>
         </div>
 
-        {/* 专业版一体化控制栏：一行排布；分段控件沿用经典版 Navbar 的 layoutId 滑块动画 */}
-        <div className="p-2 sm:p-2.5 rounded-xl bg-wb-bg-surface border border-wb-border-subtle shadow-2xs select-none flex items-center gap-2 flex-wrap">
-          {/* 流切换 */}
-          <div className="relative flex items-center bg-wb-bg-subtle p-0.5 rounded-lg border border-wb-border-subtle shrink-0">
+        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-wb-border-subtle bg-wb-bg-surface p-2.5 sm:p-3">
+          <div role="group" aria-label="动态来源" className="relative flex shrink-0 items-center rounded-xl border border-wb-border-subtle bg-wb-bg-subtle p-0.5">
             {([
               { key: 'all', label: '全部发现' },
               { key: 'following', label: '关注动态' },
@@ -585,7 +571,8 @@ export const ProHome: React.FC<ProHomeProps> = ({
                   if (tab.key === 'following' && !user) { onRequireAuth?.(); return; }
                   setStreamTab(tab.key);
                 }}
-                className={`relative z-10 h-7 px-2.5 rounded-md text-2xs font-semibold transition-colors cursor-pointer ${
+                aria-pressed={streamTab === tab.key}
+                className={`relative z-10 min-h-9 whitespace-nowrap rounded-lg px-2.5 text-xs font-semibold transition-colors ${
                   streamTab === tab.key ? 'text-wb-text-primary' : 'text-wb-text-muted hover:text-wb-text-secondary'}`}
               >
                 {streamTab === tab.key && (
@@ -598,15 +585,14 @@ export const ProHome: React.FC<ProHomeProps> = ({
             ))}
           </div>
 
-          {/* 排序分段 */}
-          <div className="relative flex items-center bg-wb-bg-subtle p-0.5 rounded-lg border border-wb-border-subtle shrink-0">
+          <div role="group" aria-label="动态排序" className="relative flex shrink-0 items-center rounded-xl border border-wb-border-subtle bg-wb-bg-subtle p-0.5">
             {([
               { key: 'latest', label: '最新发布' },
               { key: 'hot', label: '热门互动' },
               { key: 'discuss', label: '热议讨论' },
             ] as const).map((tab) => (
-              <button key={tab.key} type="button" onClick={() => setFilter(tab.key)}
-                className={`relative z-10 h-7 px-2.5 rounded-md text-2xs font-semibold transition-colors cursor-pointer ${
+              <button key={tab.key} type="button" onClick={() => setFilter(tab.key)} aria-pressed={filter === tab.key}
+                className={`relative z-10 min-h-9 whitespace-nowrap rounded-lg px-2.5 text-xs font-semibold transition-colors ${
                   filter === tab.key ? 'text-wb-text-primary' : 'text-wb-text-muted hover:text-wb-text-secondary'}`}
               >
                 {filter === tab.key && (
@@ -619,17 +605,12 @@ export const ProHome: React.FC<ProHomeProps> = ({
             ))}
           </div>
 
-          <span className="text-3xs text-wb-text-muted font-mono hidden lg:inline shrink-0">
-            ({selectedCategory} · 共 {displayTotal} 篇)
-          </span>
-
-          <div className="flex-1 min-w-[8px]" />
-
-          {/* 分页 / 无限滚动：一个按钮点击切换，带淡入淡出动画 */}
+          {/* 分页与无限滚动 */}
           <button type="button" onClick={toggleInfinite}
             title={infinite ? '当前无限滚动，点击切换为分页模式' : '当前分页模式，点击切换为无限滚动'}
-            aria-label="切换分页与无限滚动"
-            className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg bg-wb-bg-subtle border border-wb-border-subtle text-2xs font-semibold text-wb-text-secondary hover:text-wb-text-primary transition-colors shrink-0 overflow-hidden"
+            aria-pressed={infinite}
+            aria-label="无限滚动"
+            className="inline-flex h-[42px] shrink-0 items-center gap-1 overflow-hidden rounded-xl border border-wb-border-subtle px-2.5 text-xs font-semibold text-wb-text-secondary transition-colors hover:bg-wb-bg-subtle hover:text-wb-text-primary"
           >
             <AnimatePresence mode="wait" initial={false}>
               <motion.span key={infinite ? 'infinite' : 'paged'}
@@ -642,11 +623,10 @@ export const ProHome: React.FC<ProHomeProps> = ({
             </AnimatePresence>
           </button>
 
-          {/* 倒序 / 正序 / 拖拽 */}
-          <div className="relative flex items-center bg-wb-bg-subtle p-0.5 rounded-lg border border-wb-border-subtle shrink-0">
+          <div role="group" aria-label="排列顺序" className="relative flex shrink-0 items-center rounded-xl border border-wb-border-subtle bg-wb-bg-subtle p-0.5">
             {([['desc', '倒序'], ['asc', '正序'], ['custom', '拖拽']] as const).map(([k, label]) => (
-              <button key={k} type="button" onClick={() => setFeedOrder(k)}
-                className={`relative z-10 inline-flex items-center gap-0.5 h-6 px-2 rounded-md text-3xs font-semibold transition-colors ${
+              <button key={k} type="button" onClick={() => setFeedOrder(k)} aria-pressed={feedOrder === k}
+                className={`relative z-10 inline-flex min-h-9 items-center gap-0.5 rounded-lg px-2 text-xs font-semibold transition-colors ${
                   feedOrder === k ? 'text-wb-text-primary' : 'text-wb-text-muted hover:text-wb-text-secondary'}`}
               >
                 {feedOrder === k && (
@@ -659,14 +639,13 @@ export const ProHome: React.FC<ProHomeProps> = ({
             ))}
           </div>
 
-          {/* 视图切换：卡片 / 信息流（桌面与移动端共用一套） */}
-          <div className="relative flex items-center bg-wb-bg-subtle p-0.5 rounded-lg border border-wb-border-subtle text-3xs font-medium shrink-0">
+          <div role="group" aria-label="动态布局" className="relative flex shrink-0 items-center rounded-xl border border-wb-border-subtle bg-wb-bg-subtle p-0.5 text-xs font-medium">
             {([
               { key: 'card', label: '卡片', Icon: Layout, title: '舒适卡片流' },
               { key: 'dense', label: '信息流', Icon: List, title: '高密度纯文本信息流' },
             ] as const).map(({ key, label, Icon, title }) => (
-              <button key={key} type="button" onClick={() => toggleFeedViewMode(key)} title={title}
-                className={`relative z-10 flex items-center gap-1 h-6 px-2.5 rounded-md transition-colors ${
+              <button key={key} type="button" onClick={() => toggleFeedViewMode(key)} title={title} aria-pressed={feedViewMode === key}
+                className={`relative z-10 flex min-h-9 items-center gap-1 rounded-lg px-2.5 transition-colors ${
                   feedViewMode === key ? 'text-wb-text-primary font-semibold' : 'text-wb-text-muted hover:text-wb-text-secondary'}`}
               >
                 {feedViewMode === key && (
@@ -689,7 +668,7 @@ export const ProHome: React.FC<ProHomeProps> = ({
         >
           {posts.length > 0 ? (
             <>
-              {displayPosts.map((post, postIdx) =>
+              {displayPosts.map((post) =>
                 feedViewMode === 'dense' ? (
                   /* 极客纯文本单行信息流 (Dense Row) */
                   <article
@@ -700,30 +679,29 @@ export const ProHome: React.FC<ProHomeProps> = ({
                     onDrop={(e) => { e.preventDefault(); dropFeedPost(post.id); }}
                     onDragEnd={() => setDragPostId(null)}
                     onClick={() => onSelectPost(post.id)}
-                    className="w-full bg-wb-bg-surface hover:bg-wb-bg-subtle/80 border border-wb-border-subtle hover:border-wb-border-strong px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg transition-all cursor-pointer group flex items-center justify-between gap-3 text-xs select-none"
+                    className="group flex min-h-12 w-full cursor-pointer items-center justify-between gap-2 rounded-xl border border-wb-border-subtle bg-wb-bg-surface px-3 py-2 text-xs transition-colors hover:border-wb-border-strong hover:bg-wb-bg-subtle/80 sm:px-4"
                   >
-                    <div className="flex items-center gap-2 min-w-0 flex-1">
-                      <span className="text-3xs text-wb-text-muted font-mono w-5 shrink-0 text-right">
-                        {postIdx + 1}.
-                      </span>
+                    <div className="flex min-w-0 flex-1 items-center gap-2">
                       {post.is_pinned && (
                         <span className="inline-flex items-center gap-0.5 text-3xs px-1.5 py-0.2 rounded bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 font-semibold shrink-0">
                           <Pin className="w-2.5 h-2.5" />
                           <span>置顶</span>
                         </span>
                       )}
-                      <span className="text-3xs px-1.5 py-0.2 rounded bg-wb-bg-subtle text-wb-text-muted font-mono shrink-0 hidden sm:inline">
+                      <span className="hidden max-w-24 shrink-0 truncate rounded bg-wb-bg-subtle px-1.5 py-0.5 text-xs text-wb-text-muted sm:inline">
                         {post.category_name || '综合'}
                       </span>
-                      <h3 className="font-semibold text-wb-text-primary group-hover:text-wb-brand truncate group-hover:underline text-xs">
-                        {getSmartDailyTitle(post.title, post.id)}
-                      </h3>
+                      <h2 className="min-w-0 text-sm font-semibold text-wb-text-primary group-hover:text-wb-brand">
+                        <button type="button" onClick={(e) => { e.stopPropagation(); onSelectPost(post.id); }} className="block max-w-full truncate text-left group-hover:underline">
+                          {getSmartDailyTitle(post.title, post.id)}
+                        </button>
+                      </h2>
                     </div>
-                    <div className="flex items-center gap-3 shrink-0 text-3xs text-wb-text-muted font-mono">
-                      <span className="hidden md:inline">
+                    <div className="flex shrink-0 items-center gap-2 text-xs tabular-nums text-wb-text-muted sm:gap-3">
+                      <span className="hidden max-w-24 truncate lg:inline">
                         @{post.author_nickname || post.author_username}
                       </span>
-                      <span className="hidden sm:inline">{formatEast8Date(post.created_at)}</span>
+                      <time dateTime={post.created_at} className="hidden sm:inline">{formatEast8Date(post.created_at)}</time>
                       <span className="text-wb-text-secondary flex items-center gap-1">
                         <Eye className="w-3 h-3 text-wb-text-muted" />
                         <span>{post.view_count || 0}</span>
@@ -744,23 +722,22 @@ export const ProHome: React.FC<ProHomeProps> = ({
                     onDrop={(e) => { e.preventDefault(); dropFeedPost(post.id); }}
                     onDragEnd={() => setDragPostId(null)}
                     onClick={() => onSelectPost(post.id)}
-                    className="w-full bg-wb-bg-surface rounded-xl border border-wb-border-subtle p-3.5 sm:p-4 shadow-2xs hover:border-wb-border-strong transition-all cursor-pointer group space-y-2"
+                    className="group w-full cursor-pointer space-y-3 rounded-2xl border border-wb-border-subtle bg-wb-bg-surface p-3.5 transition-colors hover:border-wb-border-strong sm:p-4"
                   >
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="space-y-1.5 flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-3 sm:gap-4">
+                      <div className="min-w-0 flex-1 space-y-2">
                         {/* 作者元信息 */}
-                        <div className="flex items-center gap-2 text-3xs text-wb-text-muted font-mono">
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-wb-text-muted">
                           <UserAvatar
                             avatarUrl={post.author_avatar}
                             username={post.author_nickname || post.author_username}
                             size="xs"
                           />
-                          <span className="text-wb-text-primary font-medium truncate">
+                          <span className="max-w-full truncate font-medium text-wb-text-primary">
                             {post.author_nickname || post.author_username}
                           </span>
                           {post.author_level ? <LevelBadge level={post.author_level} /> : null}
-                          <span>·</span>
-                          <span>{formatEast8Date(post.created_at)}</span>
+                          <time dateTime={post.created_at} className="tabular-nums">{formatEast8Date(post.created_at)}</time>
                           {post.is_pinned && (
                             <span className="text-red-500 font-sans font-bold flex items-center gap-0.5">
                               <Pin className="w-3 h-3" /> 置顶
@@ -769,8 +746,10 @@ export const ProHome: React.FC<ProHomeProps> = ({
                         </div>
 
                         {/* 标题 */}
-                        <h2 className="text-sm sm:text-base font-bold text-wb-text-primary group-hover:text-blue-500 transition-colors line-clamp-2">
-                          {getSmartDailyTitle(post.title, post.id)}
+                        <h2 className="text-base font-semibold leading-snug text-wb-text-primary transition-colors group-hover:text-wb-brand sm:text-lg">
+                          <button type="button" onClick={(e) => { e.stopPropagation(); onSelectPost(post.id); }} className="line-clamp-2 max-w-full break-words text-left">
+                            {getSmartDailyTitle(post.title, post.id)}
+                          </button>
                         </h2>
 
                         {/* 摘要正文 */}
@@ -856,15 +835,6 @@ export const ProHome: React.FC<ProHomeProps> = ({
                 )
               )}
 
-              {/* 信息流数据边界 */}
-              {feedViewMode === 'dense' && (
-                <div className="py-3 text-center text-3xs font-mono text-wb-text-muted flex items-center justify-center gap-2 select-none">
-                  <span className="w-10 h-px bg-wb-border-subtle" />
-                  <span>EOF :: 信息流已载入全部条目 ({posts.length} 篇)</span>
-                  <span className="w-10 h-px bg-wb-border-subtle" />
-                </div>
-              )}
-
               {/* 无限流：滚动哨兵 + 到底提示 */}
               {infinite && <div ref={bottomSentinelRef} className="h-4" />}
               {infinite && loadingMore && (
@@ -911,10 +881,9 @@ export const ProHome: React.FC<ProHomeProps> = ({
             </div>
           )}
         </div>
-      </div>
+      </section>
 
-      {/* 3. 右侧极客专属仪表盘 (桌面端隐藏/大屏 sticky top-16) */}
-      <aside className="hidden xl:block w-72 shrink-0 space-y-3.5 select-none sticky top-16">
+      <aside aria-label="个人资料、排行榜与专栏" className="hidden min-w-0 space-y-4 xl:sticky xl:top-16 xl:block">
         {/* 个人身份卡片 */}
         {user ? (
           <div className="bg-wb-bg-surface rounded-xl border border-wb-border-subtle p-3.5 shadow-2xs space-y-3">

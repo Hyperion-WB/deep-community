@@ -549,45 +549,42 @@ export const Feedback: React.FC<Props> = ({ user, onRequireAuth, onSelectUser })
   ];
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
-      {/* 顶部标语与快速唤起 */}
-      <div className="p-6 md:p-8 rounded-3xl bg-wb-bg-surface border border-wb-border-subtle shadow-card flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-        <div className="space-y-2 max-w-xl">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-capsule bg-wb-bg-subtle border border-wb-border-subtle text-xs font-semibold text-wb-text-primary">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>社区反馈中心 · 公开建议与问题排查</span>
+    <div className="mx-auto w-full max-w-5xl space-y-4 px-3 py-4 sm:space-y-5 sm:px-6 sm:py-6">
+      <header className="flex flex-col items-start justify-between gap-4 rounded-2xl border border-wb-brand/20 bg-wb-bg-surface p-4 sm:flex-row sm:items-center sm:p-6">
+        <div className="flex min-w-0 items-start gap-3 sm:gap-4">
+          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-wb-brand/10 text-wb-brand sm:h-12 sm:w-12">
+            <Lightbulb className="h-5 w-5" aria-hidden="true" />
           </div>
-          <h1 className="text-xl md:text-2xl font-bold text-wb-text-primary tracking-tight">
-            需求公开公示与 Bug 追踪中心
-          </h1>
-          <p className="text-xs text-wb-text-muted leading-relaxed">
-            极简直观，真实透明。为心仪的功能一键 UP 顶上热度，管理团队实时跟进排查、公示采纳理由与修复进度。
-          </p>
+          <div className="min-w-0">
+            <h1 className="text-2xl font-bold tracking-tight text-wb-text-primary sm:text-3xl">社区反馈</h1>
+            <p className="mt-1 text-sm leading-relaxed text-wb-text-secondary">提交功能建议、报告 Bug，查看社区处理进度。</p>
+          </div>
         </div>
 
         <button
+          type="button"
+          aria-expanded={formOpen}
+          aria-controls={formOpen ? 'feedback-form' : undefined}
           onClick={() => {
             if (!user) return onRequireAuth();
             setFormOpen((prev) => !prev);
           }}
-          className="wb-pressable w-full sm:w-auto shrink-0 inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-capsule bg-wb-text-primary text-wb-bg-page text-xs font-semibold shadow-sm hover:opacity-90 transition-opacity"
+          className="wb-pressable inline-flex min-h-11 w-full shrink-0 items-center justify-center gap-2 rounded-xl bg-wb-text-primary px-4 text-sm font-semibold text-wb-bg-page transition-opacity hover:opacity-90 sm:w-auto"
         >
-          <Plus className={`w-4 h-4 transition-transform duration-200 ${formOpen ? 'rotate-45' : ''}`} />
-          <span>{formOpen ? '收起面板' : '我要反馈 / 提建议'}</span>
+          <Plus className={`h-4 w-4 transition-transform duration-200 ${formOpen ? 'rotate-45' : ''}`} aria-hidden="true" />
+          <span>{formOpen ? '收起反馈表单' : '提交反馈'}</span>
         </button>
-      </div>
+      </header>
 
       {/* 快速提报表单 (极简直观，绝不繁琐) */}
       {formOpen && (
         <form
+          id="feedback-form"
           onSubmit={handleSubmit}
-          className="p-5 md:p-8 rounded-3xl bg-wb-bg-surface border border-wb-border-strong shadow-card space-y-5 animate-in fade-in duration-200"
+          className="space-y-5 rounded-2xl border border-wb-border-subtle bg-wb-bg-surface p-4 sm:p-6"
         >
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-wb-border-subtle pb-4">
-            <h3 className="font-bold text-sm text-wb-text-primary flex items-center gap-2">
-              <span>提报新事项</span>
-              <span className="text-2xs text-wb-text-muted font-normal">(极简快捷，无需复杂排版)</span>
-            </h3>
+          <div className="flex flex-col justify-between gap-3 border-b border-wb-border-subtle pb-4 sm:flex-row sm:items-center">
+            <h2 className="text-base font-bold text-wb-text-primary">{editingId ? '编辑反馈草稿' : '新建反馈'}</h2>
             {/* 反馈类型切换 */}
             <div className="inline-flex items-center p-1 rounded-capsule bg-wb-bg-subtle border border-wb-border-subtle gap-1 self-start sm:self-auto">
               <button
@@ -775,18 +772,17 @@ export const Feedback: React.FC<Props> = ({ user, onRequireAuth, onSelectUser })
         </form>
       )}
 
-      {/* 筛选与排序控制条 (全端响应式防挤压，统一采用 CustomDropdown) */}
-      <div className="space-y-3">
+      <section aria-label="反馈筛选与排序" className="rounded-2xl border border-wb-border-subtle bg-wb-bg-surface p-3 sm:p-4">
         <div className="flex flex-col items-stretch gap-3">
-          {/* 类型切换 (独占一行，避免被右侧控件压成竖排文字) */}
-          <div className="relative flex items-center p-1 rounded-capsule bg-wb-bg-surface border border-wb-border-subtle shadow-card gap-1 w-full shrink-0">
+          <div role="group" aria-label="反馈类型" className="relative grid grid-cols-[0.8fr_1fr_1fr] gap-1 rounded-xl border border-wb-border-subtle bg-wb-bg-subtle p-0.5 sm:flex sm:w-fit">
             <button
               type="button"
               onClick={() => {
                 setActiveType('all');
                 setActiveStatus('all');
               }}
-              className={`relative z-10 flex-1 md:flex-initial px-3 py-1.5 rounded-capsule text-xs font-semibold text-center whitespace-nowrap shrink-0 transition-colors duration-200 select-none ${
+              aria-pressed={activeType === 'all'}
+              className={`relative z-10 min-h-9 whitespace-nowrap rounded-lg px-2 text-center text-xs font-semibold transition-colors sm:px-4 ${
                 activeType === 'all'
                   ? 'text-wb-bg-page'
                   : 'text-wb-text-secondary hover:text-wb-text-primary'
@@ -796,7 +792,7 @@ export const Feedback: React.FC<Props> = ({ user, onRequireAuth, onSelectUser })
                 <motion.div
                   layoutId="feedback-type-pill"
                   transition={{ type: 'spring', stiffness: 480, damping: 36 }}
-                  className="absolute inset-0 bg-wb-text-primary rounded-capsule shadow-sm -z-10"
+                  className="absolute inset-0 -z-10 rounded-lg bg-wb-text-primary shadow-sm"
                 />
               )}
               <span>全部</span>
@@ -807,7 +803,8 @@ export const Feedback: React.FC<Props> = ({ user, onRequireAuth, onSelectUser })
                 setActiveType('feature');
                 setActiveStatus('all');
               }}
-              className={`relative z-10 flex-1 md:flex-initial inline-flex items-center justify-center gap-1 px-3 py-1.5 whitespace-nowrap shrink-0 rounded-capsule text-xs font-semibold transition-colors duration-200 select-none ${
+              aria-pressed={activeType === 'feature'}
+              className={`relative z-10 inline-flex min-h-9 items-center justify-center gap-1 whitespace-nowrap rounded-lg px-2 text-xs font-semibold transition-colors sm:px-4 ${
                 activeType === 'feature'
                   ? 'text-wb-bg-page'
                   : 'text-wb-text-secondary hover:text-wb-text-primary'
@@ -817,7 +814,7 @@ export const Feedback: React.FC<Props> = ({ user, onRequireAuth, onSelectUser })
                 <motion.div
                   layoutId="feedback-type-pill"
                   transition={{ type: 'spring', stiffness: 480, damping: 36 }}
-                  className="absolute inset-0 bg-wb-text-primary rounded-capsule shadow-sm -z-10"
+                  className="absolute inset-0 -z-10 rounded-lg bg-wb-text-primary shadow-sm"
                 />
               )}
               <Lightbulb className="w-3.5 h-3.5" />
@@ -829,7 +826,8 @@ export const Feedback: React.FC<Props> = ({ user, onRequireAuth, onSelectUser })
                 setActiveType('bug');
                 setActiveStatus('all');
               }}
-              className={`relative z-10 flex-1 md:flex-initial inline-flex items-center justify-center gap-1 px-3 py-1.5 whitespace-nowrap shrink-0 rounded-capsule text-xs font-semibold transition-colors duration-200 select-none ${
+              aria-pressed={activeType === 'bug'}
+              className={`relative z-10 inline-flex min-h-9 items-center justify-center gap-1 whitespace-nowrap rounded-lg px-2 text-xs font-semibold transition-colors sm:px-4 ${
                 activeType === 'bug'
                   ? 'text-wb-bg-page'
                   : 'text-wb-text-secondary hover:text-wb-text-primary'
@@ -839,7 +837,7 @@ export const Feedback: React.FC<Props> = ({ user, onRequireAuth, onSelectUser })
                 <motion.div
                   layoutId="feedback-type-pill"
                   transition={{ type: 'spring', stiffness: 480, damping: 36 }}
-                  className="absolute inset-0 bg-wb-text-primary rounded-capsule shadow-sm -z-10"
+                  className="absolute inset-0 -z-10 rounded-lg bg-wb-text-primary shadow-sm"
                 />
               )}
               <Bug className="w-3.5 h-3.5" />
@@ -847,11 +845,9 @@ export const Feedback: React.FC<Props> = ({ user, onRequireAuth, onSelectUser })
             </button>
           </div>
 
-          {/* 第二行：子分区 / 单日 / 草稿箱，全部使用主题化控件 */}
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-2xs font-semibold text-wb-text-muted shrink-0">子分区</span>
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-end">
             <CustomDropdown
-              size="sm"
+              label="分区"
               value={activeCategory}
               onChange={(val) => setActiveCategory(val)}
               options={[
@@ -861,73 +857,72 @@ export const Feedback: React.FC<Props> = ({ user, onRequireAuth, onSelectUser })
                   : (categories[activeType] || [])
                 ).map((c) => ({ value: c, label: c })),
               ]}
-              className="min-w-[110px]"
+              className="min-w-0 sm:!w-36"
+              triggerClassName="!h-10 !rounded-lg"
             />
-            <span className="text-2xs font-semibold text-wb-text-muted shrink-0 ml-1">日期</span>
-            <input
-              type="date"
-              value={singleDate}
-              onChange={(e) => setSingleDate(e.target.value)}
-              aria-label="按日期筛选反馈"
-              style={{ colorScheme: 'light dark' }}
-              className="h-8 px-2.5 rounded-capsule bg-wb-bg-surface border border-wb-border-subtle text-2xs text-wb-text-primary focus:outline-none focus:border-wb-brand transition-colors"
+            <CustomDropdown
+              label="状态"
+              value={activeStatus}
+              onChange={(val) => setActiveStatus(val)}
+              options={statusDropdownOptions}
+              className="min-w-0 sm:!w-40"
+              triggerClassName="!h-10 !rounded-lg"
             />
-            {singleDate && (
-              <button type="button" onClick={() => setSingleDate('')} className="text-2xs text-wb-text-muted hover:text-wb-text-primary">清除</button>
-            )}
+            <div className="col-span-2 flex min-w-0 items-end gap-2 sm:col-span-1">
+              <label className="block min-w-0 flex-1 space-y-1.5 text-xs font-semibold text-wb-text-secondary">
+                <span className="block">日期</span>
+                <input
+                  type="date"
+                  value={singleDate}
+                  onChange={(e) => setSingleDate(e.target.value)}
+                  style={{ colorScheme: 'light dark' }}
+                  className="h-10 w-full min-w-0 rounded-lg border border-wb-border-subtle bg-wb-bg-subtle px-2.5 text-xs font-medium text-wb-text-primary focus:border-wb-brand focus:outline-none"
+                />
+              </label>
+              {singleDate && (
+                <button type="button" onClick={() => setSingleDate('')} aria-label="清除日期筛选" className="min-h-10 shrink-0 px-1 text-xs text-wb-text-secondary hover:text-wb-text-primary">清除</button>
+              )}
+            </div>
             <button
               type="button"
               onClick={() => { if (!user) return onRequireAuth(); setBox(box === 'all' ? 'draft' : 'all'); }}
-              className={`ml-auto h-8 px-3 rounded-capsule border text-2xs font-semibold shrink-0 ${box !== 'all' ? 'bg-wb-text-primary text-wb-bg-page border-transparent' : 'bg-wb-bg-surface text-wb-text-secondary border-wb-border-subtle hover:text-wb-text-primary'}`}
+              className="col-span-2 inline-flex min-h-10 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-wb-border-subtle px-3 text-xs font-semibold text-wb-text-secondary hover:bg-wb-bg-subtle hover:text-wb-text-primary sm:ml-auto"
             >
+              <Inbox className="h-4 w-4" aria-hidden="true" />
               {box === 'all' ? '我的草稿箱' : '返回全部反馈'}
             </button>
           </div>
 
           {box !== 'all' && (
-            <div className="flex items-center gap-1.5 pb-1">
+            <div role="group" aria-label="草稿箱状态" className="flex flex-wrap items-center gap-1.5">
               {([['draft', '草稿'], ['sent', '发出'], ['withdrawn', '已撤回']] as const).map(([k, label]) => (
-                <button key={k} type="button" onClick={() => setBox(k)}
-                  className={`px-2.5 py-1 rounded-capsule text-2xs font-semibold ${box === k ? 'bg-wb-text-primary text-wb-bg-page' : 'bg-wb-bg-subtle text-wb-text-secondary hover:text-wb-text-primary'}`}>
+                <button key={k} type="button" onClick={() => setBox(k)} aria-pressed={box === k}
+                  className={`min-h-9 rounded-lg px-2.5 text-xs font-semibold ${box === k ? 'bg-wb-brand/10 text-wb-brand' : 'bg-wb-bg-subtle text-wb-text-secondary hover:text-wb-text-primary'}`}>
                   {label}
                 </button>
               ))}
             </div>
           )}
 
-          {/* 状态下拉框 + 搜索框 + 排序按钮 (移动端自适应流式排版，绝无挤压) */}
-          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 w-full">
-            {/* 状态筛选器 (全局主题风格 CustomDropdown) */}
-            {(
-              <div className="shrink-0">
-                <CustomDropdown
-                  size="sm"
-                  value={activeStatus}
-                  onChange={(val) => setActiveStatus(val)}
-                  options={statusDropdownOptions}
-                  className="min-w-[110px]"
-                />
-              </div>
-            )}
-
-            {/* 搜索框 */}
-            <div className="relative flex-1 sm:w-44 min-w-[120px]">
-              <Search className="w-3.5 h-3.5 text-wb-text-muted absolute left-3 top-1/2 -translate-y-1/2" />
+          <div className="flex flex-wrap items-center gap-2 border-t border-wb-border-subtle pt-3">
+            <div className="relative min-w-0 flex-1 basis-full sm:basis-40">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-wb-text-muted" aria-hidden="true" />
               <input
-                type="text"
+                type="search"
+                aria-label="搜索反馈或处理理由"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="搜索反馈 / 理由..."
-                className="w-full h-8 pl-8 pr-3 rounded-capsule bg-wb-bg-surface border border-wb-border-subtle text-xs text-wb-text-primary focus:outline-none focus:border-wb-border-strong font-medium placeholder:text-wb-text-muted"
+                placeholder="搜索反馈或处理理由"
+                className="h-10 w-full min-w-0 rounded-lg border border-wb-border-subtle bg-wb-bg-surface pl-9 pr-3 text-sm text-wb-text-primary placeholder:text-wb-text-muted focus:border-wb-brand focus:outline-none"
               />
             </div>
 
-            {/* 排序按钮 (带全局统一弹簧滑动动效) */}
-            <div className="relative inline-flex items-center p-0.5 rounded-capsule bg-wb-bg-surface border border-wb-border-subtle shrink-0 ml-auto sm:ml-0">
+            <div role="group" aria-label="反馈排序" className="relative inline-flex shrink-0 items-center rounded-xl border border-wb-border-subtle bg-wb-bg-subtle p-0.5">
               <button
                 type="button"
                 onClick={() => setSortBy('hot')}
-                className={`relative z-10 inline-flex items-center gap-1 px-2.5 sm:px-3 py-1 rounded-capsule text-xs font-semibold transition-colors duration-200 select-none ${
+                aria-pressed={sortBy === 'hot'}
+                className={`relative z-10 inline-flex min-h-9 items-center gap-1 rounded-lg px-2.5 text-xs font-semibold transition-colors sm:px-3 ${
                   sortBy === 'hot'
                     ? 'text-wb-bg-page'
                     : 'text-wb-text-muted hover:text-wb-text-primary'
@@ -937,7 +932,7 @@ export const Feedback: React.FC<Props> = ({ user, onRequireAuth, onSelectUser })
                   <motion.div
                     layoutId="feedback-sort-pill"
                     transition={{ type: 'spring', stiffness: 480, damping: 36 }}
-                    className="absolute inset-0 bg-wb-text-primary rounded-capsule shadow-sm -z-10"
+                    className="absolute inset-0 -z-10 rounded-lg bg-wb-text-primary shadow-sm"
                   />
                 )}
                 <Flame className="w-3.5 h-3.5 text-wb-warn" />
@@ -946,7 +941,8 @@ export const Feedback: React.FC<Props> = ({ user, onRequireAuth, onSelectUser })
               <button
                 type="button"
                 onClick={() => setSortBy('latest')}
-                className={`relative z-10 px-2.5 sm:px-3 py-1 rounded-capsule text-xs font-semibold transition-colors duration-200 select-none ${
+                aria-pressed={sortBy === 'latest'}
+                className={`relative z-10 min-h-9 rounded-lg px-2.5 text-xs font-semibold transition-colors sm:px-3 ${
                   sortBy === 'latest'
                     ? 'text-wb-bg-page'
                     : 'text-wb-text-muted hover:text-wb-text-primary'
@@ -956,7 +952,7 @@ export const Feedback: React.FC<Props> = ({ user, onRequireAuth, onSelectUser })
                   <motion.div
                     layoutId="feedback-sort-pill"
                     transition={{ type: 'spring', stiffness: 480, damping: 36 }}
-                    className="absolute inset-0 bg-wb-text-primary rounded-capsule shadow-sm -z-10"
+                    className="absolute inset-0 -z-10 rounded-lg bg-wb-text-primary shadow-sm"
                   />
                 )}
                 <span>最新提交</span>
@@ -964,16 +960,16 @@ export const Feedback: React.FC<Props> = ({ user, onRequireAuth, onSelectUser })
             </div>
           </div>
         </div>
-      </div>
+      </section>
 
       {/* 反馈列表 */}
       {loading ? (
-        <div className="py-24 text-center space-y-3">
-          <div className="w-6 h-6 border-2 border-wb-text-primary border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-xs text-wb-text-muted font-mono">拉取全站真实反馈中...</p>
+        <div role="status" className="space-y-3 py-16 text-center">
+          <div className="mx-auto h-6 w-6 animate-spin rounded-full border-2 border-wb-brand border-t-transparent" aria-hidden="true" />
+          <p className="text-sm text-wb-text-secondary">正在加载反馈…</p>
         </div>
       ) : displayedList.length === 0 ? (
-        <div className="p-12 rounded-3xl bg-wb-bg-surface border border-wb-border-subtle text-center space-y-3 shadow-card">
+        <div className="space-y-3 rounded-2xl border border-wb-border-subtle bg-wb-bg-surface px-4 py-10 text-center sm:p-12">
           <div className="w-12 h-12 rounded-2xl bg-wb-bg-subtle border border-wb-border-subtle flex items-center justify-center mx-auto text-wb-text-muted">
             <Inbox className="w-6 h-6" />
           </div>
@@ -1008,22 +1004,23 @@ export const Feedback: React.FC<Props> = ({ user, onRequireAuth, onSelectUser })
             return (
               <div
                 key={item.id}
-                className="p-4 sm:p-6 rounded-3xl bg-wb-bg-surface border border-wb-border-subtle shadow-card hover:border-wb-border-strong transition-all flex items-start gap-3 sm:gap-4"
+                className="flex items-start gap-3 rounded-2xl border border-wb-border-subtle bg-wb-bg-surface p-3 transition-colors hover:border-wb-border-strong sm:gap-5 sm:p-5"
               >
                 {/* 左侧：一键 UP 胶囊按钮 (移动端与桌面端均保持侧边对齐，绝不换行断裂) */}
                 <button
                   type="button"
                   onClick={() => handleToggleUpvote(item)}
-                  title={item.has_upvoted ? '取消 UP' : '顶上去让管理员看到'}
-                  className={`wb-pressable flex flex-col items-center justify-center w-11 sm:w-14 py-2 rounded-2xl border transition-all shrink-0 ${
+                  aria-label={`${item.title}，支持数 ${item.upvotes_count}`}
+                  aria-pressed={item.has_upvoted}
+                  title={item.has_upvoted ? '取消支持' : '支持反馈'}
+                  className={`wb-pressable flex min-h-12 w-11 shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl border px-1 py-2 transition-colors sm:w-14 ${
                     item.has_upvoted
-                      ? 'bg-wb-text-primary text-wb-bg-page border-transparent shadow-sm font-bold'
-                      : 'bg-wb-bg-subtle text-wb-text-secondary border-wb-border-subtle hover:border-wb-border-strong hover:text-wb-text-primary'
+                      ? 'border-wb-brand/20 bg-wb-brand/10 text-wb-brand'
+                      : 'border-wb-border-subtle bg-wb-bg-subtle text-wb-text-secondary hover:border-wb-border-strong hover:text-wb-text-primary'
                   }`}
                 >
-                  <ArrowUp className={`w-3.5 sm:w-4 h-3.5 sm:h-4 mb-0.5 ${item.has_upvoted ? 'stroke-[2.5]' : ''}`} />
-                  <span className="font-mono text-xs font-bold leading-tight">{item.upvotes_count}</span>
-                  <span className="text-3xs scale-90 opacity-75 leading-tight">UP</span>
+                  <ArrowUp className="h-4 w-4" aria-hidden="true" />
+                  <span className="text-xs font-bold leading-tight tabular-nums">{item.upvotes_count}</span>
                 </button>
 
                 {/* 中间核心内容 */}
@@ -1058,18 +1055,18 @@ export const Feedback: React.FC<Props> = ({ user, onRequireAuth, onSelectUser })
                       <span>{statusConfig.label}</span>
                     </span>
 
-                    <span className="text-2xs sm:text-xs text-wb-text-muted font-mono ml-auto">
+                    <time dateTime={item.created_at} className="text-xs tabular-nums text-wb-text-muted sm:ml-auto">
                       {formatEast8Date(item.created_at)}
-                    </span>
+                    </time>
                   </div>
 
                   {/* 标题 */}
-                  <h2 className="font-bold text-sm md:text-base text-wb-text-primary leading-snug break-words">
+                  <h2 className="break-words text-base font-semibold leading-snug text-wb-text-primary sm:text-lg">
                     {item.title}
                   </h2>
 
                   {/* 内容描述 */}
-                  <p className="text-xs text-wb-text-secondary leading-relaxed whitespace-pre-wrap break-words">
+                  <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-wb-text-secondary">
                     {item.content}
                   </p>
 

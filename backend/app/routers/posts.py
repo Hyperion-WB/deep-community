@@ -1162,6 +1162,7 @@ async def list_user_drafts(
             "id": str(d.id),
             "title": d.title,
             "content_md": d.content_md,
+            "content_type": d.content_type,
             "category_id": d.category_id,
             "category_name": d.category.name if d.category else "综合",
             "post_type": d.post_type,
@@ -1200,6 +1201,7 @@ async def save_post_draft(
             title=req.title or "未命名草稿",
             content_md=req.content_md or "",
             content_html=clean_html(req.content_md or ""),
+            content_type=req.content_type,
             category_id=req.category_id,
             post_type=effective_post_type,
             tags=clean_tags,
@@ -1215,6 +1217,8 @@ async def save_post_draft(
         draft.title = req.title or "未命名草稿"
         draft.content_md = req.content_md or ""
         draft.content_html = clean_html(req.content_md or "")
+        if "content_type" in req.model_fields_set:
+            draft.content_type = req.content_type
         draft.category_id = req.category_id
         if req.post_type:
             draft.post_type = effective_post_type
@@ -1746,6 +1750,8 @@ async def update_post(
             raise HTTPException(status_code=400, detail=f"正文包含违规敏感词: {', '.join(hit_words_c)}")
         post.content_md = replaced_content
         post.content_html = clean_html(replaced_content)
+        if "content_type" in req.model_fields_set:
+            post.content_type = req.content_type
 
     if req.category_id is not None:
         cat_q = select(Category).where(Category.id == req.category_id)

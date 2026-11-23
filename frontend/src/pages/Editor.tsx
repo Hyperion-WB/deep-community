@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { lazy, Suspense, useDeferredValue, useState, useEffect, useRef, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { mdTableComponents } from '../utils/mdComponents';
 import remarkBreaks from 'remark-breaks';
-import { Image as ImageIcon, Images, ChevronLeft, ChevronRight, X, Send, BarChart2, Plus, Trash2, Tag, MessageSquare, ShieldCheck, Bold, Italic, Heading2, Quote, Code, List, CheckSquare, Link as LinkIcon, Table as TableIcon, Eye, Edit3, RotateCcw, Sparkles, Newspaper, FolderOpen, Save, Clock, FileText } from 'lucide-react';
+import { Image as ImageIcon, Images, ChevronLeft, ChevronRight, ChevronDown, X, Send, BarChart2, Plus, Trash2, Tag, MessageSquare, ShieldCheck, Bold, Italic, Heading2, Quote, Code, List, CheckSquare, Link as LinkIcon, Table as TableIcon, Eye, Edit3, Columns2, RotateCcw, Sparkles, Newspaper, FolderOpen, Save, Clock, FileText } from 'lucide-react';
 import { apiClient, UPLOAD_TIMEOUT } from '../api/client';
 import type { UserProfile } from '../types';
 import { CustomDropdown, type DropdownOption } from '../components/CustomDropdown';
@@ -24,8 +24,56 @@ interface Props {
   onClearInitialDraftId?: () => void;
 }
 
-// 草稿键按用户隔离，避免 A 退出后 B 登录看到别人的未发布内容
-const draftKey = (name: string, userId?: string) => `draft_${name}_${userId || 'anon'}`;
+const RichTextEditor = lazy(() => import('../components/RichTextEditor'));
+
+const editorViews = [
+  { id: 'edit', label: '编辑', Icon: Edit3 },
+  { id: 'preview', label: '预览', Icon: Eye },
+  { id: 'split', label: '分栏', Icon: Columns2 },
+] as const;
+
+const articleTemplates = [
+  { label: '技术分享', description: '背景、实现和总结', markdown: '## 背景\n\n介绍问题与目标。\n\n## 实现思路\n\n记录关键步骤与示例。\n\n## 总结\n\n补充收获与相关资源。' },
+  { label: '问题求助', description: '现象、复现和已尝试的方法', markdown: '## 问题描述\n\n描述现象和预期结果。\n\n## 复现步骤\n\n1. 说明运行环境。\n2. 列出复现步骤。\n\n## 已尝试的方法\n\n- 补充排查过程。' },
+  { label: '社区日报', description: '要闻、开源动态和阅读推荐', markdown: '## 今日要闻\n\n- **要闻标题**：简要说明与来源。\n\n## 开源动态\n\n- **项目名称**：更新亮点与项目链接。\n\n## 推荐阅读\n\n- 补充文章及推荐理由。' },
+];
+
+const articleStatements = [
+  { label: '原创声明', markdown: '> **创作声明**：本文为原创内容，转载请注明作者和来源。' },
+  { label: '转载声明', markdown: '> **转载声明**：原作者：待填写 · 原文链接：待填写。' },
+  { label: '翻译声明', markdown: '> **翻译声明**：本文译自原文，原作者和出处：待填写。' },
+];
+
+function readDraftMarkdown(content: string, format?: string) {
+  return format === 'plain' ? content.replace(/[!"#$%&'()*+,\-./:;<=>?@[\]\\^_`{|}~]/g, '\\$&') : content;
+}
+
+const editorTabs = 'inline-flex flex-wrap gap-0.5 rounded-xl border border-wb-border-subtle bg-wb-bg-subtle p-0.5';
+const editorTab = 'inline-flex min-h-8 items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 text-xs font-medium text-wb-text-secondary transition-colors hover:text-wb-text-primary aria-pressed:bg-wb-bg-elevated aria-pressed:text-wb-text-primary aria-pressed:shadow-sm';
+
+const previewComponents = {
+  ...mdTableComponents,
+  pre({ children, ...props }: React.ComponentProps<'pre'>) {
+    if (React.isValidElement<{ className?: string; children?: React.ReactNode }>(children)) {
+      const language = children.props.className?.match(/language-([^\s]+)/)?.[1];
+      return <CodeBlock language={language || 'text'} value={String(children.props.children).replace(/\n$/, '')} />;
+    }
+    return <pre {...props}>{children}</pre>;
+  },
+};
+
+const MarkdownPreview = React.memo(function MarkdownPreview({ title, markdown }: { title: string; markdown: string }) {
+  return (
+    <div className="wb-author-pane-body overflow-auto px-4 py-5 md:px-6" tabIndex={0} aria-label="Markdown 预览内容">
+      {title.trim() && <h2 className="mb-5 border-b border-wb-border-subtle pb-3 text-xl font-bold text-wb-text-primary">{title}</h2>}
+      {markdown.trim() ? (
+        <div className="wb-author-prose prose max-w-none">
+          <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]} components={previewComponents}>{markdown}</ReactMarkdown>
+        </div>
+      ) : <p className="py-12 text-center text-sm text-wb-text-muted">写下正文后，排版会显示在这里。</p>}
+    </div>
+  );
+});
 
 export const Editor: React.FC<Props> = ({
   user,
@@ -39,8 +87,12 @@ export const Editor: React.FC<Props> = ({
   const confirm = useConfirm();
   const isSuperAdmin = user?.role === 'super_admin' || user?.role === 'admin';
   const effectiveMode = initialMode === 'daily' && isSuperAdmin ? 'daily' : 'post';
+  const draftKey = (name: string) => `draft_${effectiveMode === 'daily' ? 'daily_' : ''}${name}_${user?.id || 'anon'}`;
   const [title, setTitle] = useState('');
   const [contentMd, setContentMd] = useState('');
+  const previewMarkdown = useDeferredValue(contentMd);
+  const previewTitle = useDeferredValue(title);
+  const insertMenuRef = useRef<HTMLDetailsElement>(null);
   const [categoryId, setCategoryId] = useState<number>(effectiveMode === 'daily' ? 2 : 1);
   const [postType, setPostType] = useState<'post' | 'news'>(effectiveMode === 'daily' ? 'news' : 'post');
   const [commentPolicy, setCommentPolicy] = useState('open');
@@ -70,18 +122,17 @@ export const Editor: React.FC<Props> = ({
   useEffect(() => {
     submittingRef.current = submitting;
   }, [submitting]);
-  const [viewMode, setViewMode] = useState<'edit' | 'preview'>('edit');
-  // 正文格式：不熟 Markdown 的用户可切到纯文本，换行原样保留
+  const [viewMode, setViewMode] = useState<typeof editorViews[number]['id']>('split');
   // 好文分享：原创 / 转载 + 来源 + 承诺书
   const [sourceType, setSourceType] = useState<'original' | 'repost' | ''>('');
   const [sourceNote, setSourceNote] = useState('');
   const [sourceAck, setSourceAck] = useState(false);
-  const [contentFormat, setContentFormat] = useState<'markdown' | 'plain'>(
-    () => (localStorage.getItem('wb_editor_format') === 'plain' ? 'plain' : 'markdown')
+  const [editorMode, setEditorMode] = useState<'markdown' | 'rich'>(
+    () => localStorage.getItem('wb_editor_format') === 'rich' ? 'rich' : 'markdown'
   );
-  const switchFormat = (f: 'markdown' | 'plain') => {
-    setContentFormat(f);
-    try { localStorage.setItem('wb_editor_format', f); } catch { /* 忽略 */ }
+  const switchEditorMode = (mode: typeof editorMode) => {
+    setEditorMode(mode);
+    localStorage.setItem('wb_editor_format', mode);
   };
   const [lastSavedTime, setLastSavedTime] = useState<string | null>(null);
 
@@ -103,7 +154,7 @@ export const Editor: React.FC<Props> = ({
   const [currentDraftId, setCurrentDraftIdRaw] = useState<string | null>(() => {
     if (initialDraftId) return initialDraftId;
     try {
-      return localStorage.getItem('current_editing_draft_id') || null;
+      return localStorage.getItem(draftKey('cloud_id')) || null;
     } catch {
       return null;
     }
@@ -127,17 +178,19 @@ export const Editor: React.FC<Props> = ({
     };
     window.addEventListener('storage', onStorageSync);
     return () => window.removeEventListener('storage', onStorageSync);
-  }, []);  // 正文插图在途上传计数：上传未完成时不允许发布，否则正文缺图
+  }, []);
   const inlineUploadingRef = useRef(0);
+  const [inlineUploading, setInlineUploading] = useState(0);
+  const documentRevision = useRef(0);
 
   // 统一的 setCurrentDraftId 包装器：同步更新 ref + localStorage
   const setCurrentDraftId = (id: string | null) => {
     currentDraftIdRef.current = id;
     setCurrentDraftIdRaw(id);
     if (id) {
-      localStorage.setItem('current_editing_draft_id', id);
+      localStorage.setItem(draftKey('cloud_id'), id);
     } else {
-      localStorage.removeItem('current_editing_draft_id');
+      localStorage.removeItem(draftKey('cloud_id'));
     }
   };
 
@@ -170,7 +223,7 @@ export const Editor: React.FC<Props> = ({
         const cloudItems: DraftItem[] = res.data.map((item: any) => ({
           id: item.id,
           title: item.title,
-          contentMd: item.content_md,
+          contentMd: readDraftMarkdown(item.content_md || '', item.content_type),
           categoryId: item.category_id || 1,
           postType: item.post_type || 'post',
           tags: item.tags || [],
@@ -217,7 +270,7 @@ export const Editor: React.FC<Props> = ({
         draft_id: isUuid ? currentDraftId : undefined,
         title: title.trim() || '未命名草稿',
         content_md: contentMd.trim(),
-        content_type: contentFormat,
+        content_type: 'markdown',
         category_id: categoryId,
         post_type: postType,
         tags,
@@ -274,6 +327,7 @@ export const Editor: React.FC<Props> = ({
       const res = await apiClient.post('/posts/draft/save', {
         title: title.trim() || '未命名草稿',
         content_md: contentMd.trim(),
+        content_type: 'markdown',
         category_id: categoryId,
         post_type: postType,
         tags,
@@ -330,6 +384,7 @@ export const Editor: React.FC<Props> = ({
   };
 
   const handleLoadDraft = (draft: DraftItem) => {
+    documentRevision.current += 1;
     setCurrentDraftId(draft.id);
     setAlbumImages(draft.imageUrls || []);
     setTitle(draft.title);
@@ -342,23 +397,24 @@ export const Editor: React.FC<Props> = ({
       const raw = localStorage.getItem(editorSettingsKey(draft.id));
       if (raw) applyEditorSettings(JSON.parse(raw));
     } catch {}
-    localStorage.setItem(draftKey('title', user?.id), draft.title);
-    localStorage.setItem(draftKey('content', user?.id), draft.contentMd);
-    localStorage.setItem(draftKey('category', user?.id), String(draft.categoryId));
+    localStorage.setItem(draftKey('title'), draft.title);
+    localStorage.setItem(draftKey('content'), draft.contentMd);
+    localStorage.setItem(draftKey('category'), String(draft.categoryId));
     setLastSavedTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
     setIsDraftModalOpen(false);
     toast.success(`已载入草稿：《${draft.title || '未命名草稿'}》`);
   };
 
   const handleStartNewBlank = () => {
+    documentRevision.current += 1;
     setCurrentDraftId(null);
     setTitle('');
     setContentMd('');
     setTags([]);
     setUserEditedTitle(false);
-    localStorage.removeItem(draftKey('title', user?.id));
-    localStorage.removeItem(draftKey('content', user?.id));
-    localStorage.removeItem(draftKey('category', user?.id));
+    localStorage.removeItem(draftKey('title'));
+    localStorage.removeItem(draftKey('content'));
+    localStorage.removeItem(draftKey('category'));
     setLastSavedTime(null);
     setCloudSyncStatus('idle');
     toast.info('已开启新空白文章创作');
@@ -371,9 +427,12 @@ export const Editor: React.FC<Props> = ({
           const res = await apiClient.get(`/posts/${initialDraftId}`);
           if (res.data) {
             const d = res.data;
+            documentRevision.current += 1;
             setCurrentDraftId(initialDraftId);
             setTitle(d.title || '');
-            setContentMd(d.content_md || '');
+            const markdown = readDraftMarkdown(d.content_md || '', d.content_type);
+            setContentMd(markdown);
+            setAlbumImages(d.image_urls || []);
             if (d.category_id) setCategoryId(d.category_id);
             if (d.post_type) setPostType(d.post_type);
             if (Array.isArray(d.tags)) setTags(d.tags);
@@ -387,9 +446,9 @@ export const Editor: React.FC<Props> = ({
               const raw = localStorage.getItem(editorSettingsKey(initialDraftId));
               if (raw) applyEditorSettings(JSON.parse(raw));
             } catch {}
-            localStorage.setItem(draftKey('title', user?.id), d.title || '');
-            localStorage.setItem(draftKey('content', user?.id), d.content_md || '');
-            if (d.category_id) localStorage.setItem(draftKey('category', user?.id), String(d.category_id));
+            localStorage.setItem(draftKey('title'), d.title || '');
+            localStorage.setItem(draftKey('content'), markdown);
+            if (d.category_id) localStorage.setItem(draftKey('category'), String(d.category_id));
             setLastSavedTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
             toast.success(`已载入草稿：《${d.title || '未命名草稿'}》`);
             onClearInitialDraftId?.();
@@ -471,23 +530,12 @@ export const Editor: React.FC<Props> = ({
 
   // 本地自动备份草稿 (localStorage)
   useEffect(() => {
-    if (effectiveMode === 'daily') {
-      setPostType('news');
-      setCategoryId(2);
-      setTitle('');
-      setContentMd('');
-      setTags(['每日早报', '前沿架构', '开源快讯']);
-      return;
-    }
+    if (initialDraftId) return;
+    if (effectiveMode === 'daily') setTags(['每日早报', '前沿架构', '开源快讯']);
 
-    if (initialDraftId) {
-      // 若外部传入了特定的 draftId，优先加载该草稿，避免本地旧草稿覆盖
-      return;
-    }
-
-    const savedTitle = localStorage.getItem(draftKey('title', user?.id));
-    const savedContent = localStorage.getItem(draftKey('content', user?.id));
-    const savedCategory = localStorage.getItem(draftKey('category', user?.id));
+    const savedTitle = localStorage.getItem(draftKey('title'));
+    const savedContent = localStorage.getItem(draftKey('content'));
+    const savedCategory = localStorage.getItem(draftKey('category'));
     if (savedTitle) {
       setTitle(savedTitle);
       setUserEditedTitle(true);
@@ -497,7 +545,7 @@ export const Editor: React.FC<Props> = ({
     if (savedTitle || savedContent) {
       setLastSavedTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
     }
-  }, [effectiveMode, initialDraftId]);
+  }, [effectiveMode, user?.id]);
 
   const saveToLocal = (t: string, c: string, cat?: number, explicitUserTitle?: boolean) => {
     let resolvedTitle = t;
@@ -512,9 +560,9 @@ export const Editor: React.FC<Props> = ({
     }
     setTitle(resolvedTitle);
     setContentMd(c);
-    localStorage.setItem(draftKey('title', user?.id), resolvedTitle);
-    localStorage.setItem(draftKey('content', user?.id), c);
-    if (cat) localStorage.setItem(draftKey('category', user?.id), String(cat));
+    localStorage.setItem(draftKey('title'), resolvedTitle);
+    localStorage.setItem(draftKey('content'), c);
+    if (cat) localStorage.setItem(draftKey('category'), String(cat));
     setLastSavedTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
   };
 
@@ -526,15 +574,16 @@ export const Editor: React.FC<Props> = ({
       danger: true,
     });
     if (ok) {
+      documentRevision.current += 1;
       // 必须先清除 currentDraftId，否则自动云同步会以旧 ID 将空内容覆盖回服务端
       setCurrentDraftId(null);
       setTitle('');
       setContentMd('');
       setTags([]);
       setUserEditedTitle(false);
-      localStorage.removeItem(draftKey('title', user?.id));
-      localStorage.removeItem(draftKey('content', user?.id));
-      localStorage.removeItem(draftKey('category', user?.id));
+      localStorage.removeItem(draftKey('title'));
+      localStorage.removeItem(draftKey('content'));
+      localStorage.removeItem(draftKey('category'));
       setLastSavedTime(null);
       setCloudSyncStatus('idle');
     }
@@ -556,6 +605,24 @@ export const Editor: React.FC<Props> = ({
       textarea.focus();
       textarea.setSelectionRange(start + prefix.length, start + prefix.length + selected.length);
     }, 10);
+  };
+
+  const insertArticleBlock = (markdown: string) => {
+    if (insertMenuRef.current) insertMenuRef.current.open = false;
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    const nextLine = contentMd.indexOf('\n', textarea.selectionEnd);
+    const position = nextLine === -1 ? contentMd.length : nextLine;
+    const before = contentMd.slice(0, position);
+    const after = contentMd.slice(position);
+    const prefix = before ? '\n\n' : '';
+    const suffix = after && !after.startsWith('\n\n') ? '\n' : '';
+    saveToLocal(title, before + prefix + markdown + suffix + after, categoryId);
+    requestAnimationFrame(() => {
+      const end = position + prefix.length + markdown.length;
+      textarea.focus();
+      textarea.setSelectionRange(end, end);
+    });
   };
 
   // 九宫格相册：最多 10 张，可排序（朋友圈式发图）
@@ -677,48 +744,44 @@ export const Editor: React.FC<Props> = ({
     });
   };
 
-  // 直接上传图片并光标处注入 Markdown
-  const uploadAndInsertFile = async (file: File) => {
+  const uploadInlineImage = async (file: File): Promise<string | undefined> => {
     if (!file.type.startsWith('image/')) return;
     const invalid = validateUploadFile(file);
     if (invalid) {
       toast.error(invalid);
       return;
     }
-    inlineUploadingRef.current += 1;
-    // 大图先在前端缩到 2048 并转 WebP，显著减少上行耗时（服务端仍会做最终编码）
-    const uploadFile = await precompressImage(file, 1600);
-    const formData = new FormData();
-    formData.append('file', uploadFile);
-
+    const revision = documentRevision.current;
+    setInlineUploading(++inlineUploadingRef.current);
     try {
+      const formData = new FormData();
+      formData.append('file', await precompressImage(file, 1600));
       const res = await apiClient.post('/posts/upload-image', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
         timeout: UPLOAD_TIMEOUT,
       });
-      const imgUrl = res.data.url;
-      const snippet = `\n![图片](${imgUrl})\n`;
-      const textarea = textareaRef.current;
-      if (textarea) {
-        // 上传期间用户可能继续输入：以此刻的文本与光标为准，避免用旧快照覆盖新输入
-        const liveContent = textarea.value ?? contentMd;
-        const start = textarea.selectionStart ?? liveContent.length;
-        const end = textarea.selectionEnd ?? liveContent.length;
-        const nextContent = liveContent.substring(0, start) + snippet + liveContent.substring(end);
-        saveToLocal(title, nextContent, categoryId);
-        setTimeout(() => {
-          textarea.focus();
-          textarea.setSelectionRange(start + snippet.length, start + snippet.length);
-        }, 10);
-      } else {
-        saveToLocal(title, contentMd + snippet, categoryId);
-      }
-      toast.success('图片已插入');
+      if (documentRevision.current === revision) return res.data.url;
     } catch (err: any) {
       toast.error(err.response?.data?.detail || '图片上传失败');
     } finally {
-      inlineUploadingRef.current = Math.max(0, inlineUploadingRef.current - 1);
+      setInlineUploading(--inlineUploadingRef.current);
     }
+  };
+
+  const insertUploadedMarkdown = useRef<(url: string) => void>(() => {});
+  insertUploadedMarkdown.current = (url) => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    const { value, selectionEnd } = textarea;
+    const snippet = `\n![图片](${url})\n`;
+    saveToLocal(title, value.slice(0, selectionEnd) + snippet + value.slice(selectionEnd), categoryId);
+    requestAnimationFrame(() => textarea.setSelectionRange(selectionEnd + snippet.length, selectionEnd + snippet.length));
+    toast.success('图片已插入');
+  };
+
+  const uploadAndInsertFile = async (file: File) => {
+    const url = await uploadInlineImage(file);
+    if (url) insertUploadedMarkdown.current(url);
   };
 
   // 截屏剪贴板粘贴直接上传
@@ -783,6 +846,7 @@ export const Editor: React.FC<Props> = ({
           draft_id: isUuid ? activeDraftId : undefined,
           title: title.trim() || '未命名草稿',
           content_md: contentMd.trim(),
+          content_type: 'markdown',
           category_id: categoryId,
           post_type: postType,
           tags: tags,
@@ -868,12 +932,12 @@ export const Editor: React.FC<Props> = ({
   }, [title, contentMd, cloudSyncStatus]);
 
   const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (isShareCategory) {
       if (!sourceType) { toast.warning('好文分享需选择「原创」或「转载」'); return; }
       if (sourceType === 'repost' && sourceNote.trim().length < 2) { toast.warning('转载必须注明文章来源'); return; }
       if (!sourceAck) { toast.warning('请先勾选「我已知晓」承诺书'); return; }
     }
-    e.preventDefault();
     if (!user) return onRequireAuth();
     if (user.status === 'probation') {
       toast.warning(`您当前处于见习观察期（还需活跃 ${Math.max(1, 5 - (user.active_days || 0))} 天自动转正），暂不可公开发布文章。您的草稿已妥善保存至草稿箱～`);
@@ -947,6 +1011,7 @@ export const Editor: React.FC<Props> = ({
       const postPayload: any = {
         title: finalTitle,
         content_md: contentMd.trim(),
+        content_type: 'markdown',
         category_id: categoryId,
         post_type: postType,
         comment_policy: commentPolicy,
@@ -984,6 +1049,7 @@ export const Editor: React.FC<Props> = ({
           const res = await apiClient.put(`/posts/${currentDraftId}`, {
             title: finalTitle,
             content_md: contentMd.trim(),
+            content_type: 'markdown',
             category_id: categoryId,
             tags: tags,
             comment_policy: commentPolicy,
@@ -1038,9 +1104,9 @@ export const Editor: React.FC<Props> = ({
       setCurrentDraftId(null);
 
       // 清空本地草稿缓存与编辑状态，防止新建文章时覆盖旧文章
-      localStorage.removeItem(draftKey('title', user?.id));
-      localStorage.removeItem(draftKey('content', user?.id));
-      localStorage.removeItem(draftKey('category', user?.id));
+      localStorage.removeItem(draftKey('title'));
+      localStorage.removeItem(draftKey('content'));
+      localStorage.removeItem(draftKey('category'));
       setTitle('');
       setContentMd('');
       setTagInput('');
@@ -1146,8 +1212,8 @@ export const Editor: React.FC<Props> = ({
   const estimatedMinutes = Math.max(1, Math.ceil(charCount / 350));
 
   return (
-    <div className="max-w-4xl mx-auto px-4 pt-6 pb-28">
-      <form onSubmit={handleSubmit} className="p-6 md:p-8 rounded-3xl bg-wb-bg-surface border border-wb-border-subtle shadow-card space-y-6">
+    <div className="mx-auto max-w-7xl px-3 pt-4 pb-28 sm:px-6 sm:pt-6">
+      <form onSubmit={handleSubmit} className="space-y-5 rounded-3xl border border-wb-border-subtle bg-wb-bg-surface p-3.5 shadow-card sm:p-6 lg:p-8">
         {/* 见习期提醒横幅 */}
         {user?.status === 'probation' && (
           <div className="p-3.5 rounded-2xl bg-wb-warn/10 border border-wb-warn/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-wb-warn dark:text-wb-warn">
@@ -1291,64 +1357,6 @@ export const Editor: React.FC<Props> = ({
               </button>
             )}
 
-            {/* 编辑/预览双模式切换 */}
-            <div className="inline-flex items-center p-0.5 rounded-capsule bg-wb-bg-subtle border border-wb-border-subtle text-xs shrink-0 whitespace-nowrap">
-              <button
-                type="button"
-                onClick={() => setViewMode('edit')}
-                className={`wb-pressable inline-flex items-center gap-1 px-3 py-1 rounded-capsule transition-all select-none whitespace-nowrap shrink-0 ${
-                  viewMode === 'edit'
-                    ? 'bg-wb-text-primary text-wb-bg-page font-semibold shadow-sm'
-                    : 'text-wb-text-secondary hover:text-wb-text-primary'
-                }`}
-              >
-                <Edit3 className="w-3 h-3 shrink-0" />
-                <span className="whitespace-nowrap">编写</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode('preview')}
-                className={`wb-pressable inline-flex items-center gap-1 px-3 py-1 rounded-capsule transition-all select-none whitespace-nowrap shrink-0 ${
-                  viewMode === 'preview'
-                    ? 'bg-wb-text-primary text-wb-bg-page font-semibold shadow-sm'
-                    : 'text-wb-text-secondary hover:text-wb-text-primary'
-                }`}
-              >
-                <Eye className="w-3 h-3 shrink-0" />
-                <span className="whitespace-nowrap">排版预览</span>
-              </button>
-            </div>
-
-            {/* 正文格式：Markdown / 纯文本（与编写/预览同款胶囊与 wb-pressable 动画） */}
-            <div className="inline-flex items-center p-0.5 rounded-capsule bg-wb-bg-subtle border border-wb-border-subtle text-xs shrink-0 whitespace-nowrap">
-              <button
-                type="button"
-                onClick={() => switchFormat('markdown')}
-                title="Markdown 语法：支持标题、列表、代码块、链接等排版"
-                className={`wb-pressable inline-flex items-center gap-1 px-3 py-1 rounded-capsule transition-all select-none whitespace-nowrap shrink-0 ${
-                  contentFormat === 'markdown'
-                    ? 'bg-wb-text-primary text-wb-bg-page font-semibold shadow-sm'
-                    : 'text-wb-text-secondary hover:text-wb-text-primary'
-                }`}
-              >
-                <span className="font-mono font-bold text-2xs">M↓</span>
-                <span className="whitespace-nowrap">Markdown</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => switchFormat('plain')}
-                title="纯文本：输入什么就显示什么，不会解析 #、*、- 等符号"
-                className={`wb-pressable inline-flex items-center gap-1 px-3 py-1 rounded-capsule transition-all select-none whitespace-nowrap shrink-0 ${
-                  contentFormat === 'plain'
-                    ? 'bg-wb-text-primary text-wb-bg-page font-semibold shadow-sm'
-                    : 'text-wb-text-secondary hover:text-wb-text-primary'
-                }`}
-              >
-                <FileText className="w-3 h-3 shrink-0" />
-                <span className="whitespace-nowrap">纯文本</span>
-              </button>
-            </div>
-
             {/* 定时发布（管理员专属能力） */}
             {['super_admin', 'admin'].includes(user?.role || '') && (
             <div className="flex items-center gap-1.5 shrink-0">
@@ -1376,7 +1384,7 @@ export const Editor: React.FC<Props> = ({
             {/* 发布 / 定时发布 */}
             <button
               type="submit"
-              disabled={submitting || albumTasks.length > 0}
+              disabled={submitting || inlineUploading > 0 || albumTasks.length > 0}
               className="wb-pressable inline-flex items-center gap-1.5 px-5 py-1.5 rounded-capsule bg-wb-text-primary text-wb-bg-page text-xs font-semibold hover:opacity-90 disabled:opacity-50 shadow-sm whitespace-nowrap shrink-0"
             >
               <Send className="w-3.5 h-3.5 shrink-0" />
@@ -1501,134 +1509,199 @@ export const Editor: React.FC<Props> = ({
           </div>
         </div>
 
-        {/* Markdown 语法快捷工具栏 (极简冷钛微图标) */}
-        {viewMode === 'edit' && contentFormat === 'markdown' && (
-          <div className="flex flex-wrap items-center gap-1 p-2 rounded-2xl bg-wb-bg-subtle/80 border border-wb-border-subtle">
-            <button
-              type="button"
-              onClick={() => insertMarkdown('**', '**', '加粗文本')}
-              title="粗体"
-              className="p-1.5 rounded-xl hover:bg-wb-bg-surface text-wb-text-secondary hover:text-wb-text-primary transition-colors"
-            >
-              <Bold className="w-3.5 h-3.5" />
-            </button>
-            <button
-              type="button"
-              onClick={() => insertMarkdown('*', '*', '斜体文本')}
-              title="斜体"
-              className="p-1.5 rounded-xl hover:bg-wb-bg-surface text-wb-text-secondary hover:text-wb-text-primary transition-colors"
-            >
-              <Italic className="w-3.5 h-3.5" />
-            </button>
-            <button
-              type="button"
-              onClick={() => insertMarkdown('\n## ', '', '二级标题')}
-              title="标题"
-              className="p-1.5 rounded-xl hover:bg-wb-bg-surface text-wb-text-secondary hover:text-wb-text-primary transition-colors"
-            >
-              <Heading2 className="w-3.5 h-3.5" />
-            </button>
-            <button
-              type="button"
-              onClick={() => insertMarkdown('\n> ', '', '引用文案')}
-              title="引用"
-              className="p-1.5 rounded-xl hover:bg-wb-bg-surface text-wb-text-secondary hover:text-wb-text-primary transition-colors"
-            >
-              <Quote className="w-3.5 h-3.5" />
-            </button>
-            <button
-              type="button"
-              onClick={() => insertMarkdown('`', '`', 'code')}
-              title="行内代码"
-              className="p-1.5 rounded-xl hover:bg-wb-bg-surface text-wb-text-secondary hover:text-wb-text-primary transition-colors"
-            >
-              <Code className="w-3.5 h-3.5" />
-            </button>
-            <button
-              type="button"
-              onClick={() => insertMarkdown('\n```python\n# 示例代码\n', '\n```\n', '')}
-              title="代码块"
-              className="px-2 py-1 rounded-xl hover:bg-wb-bg-surface text-2xs font-mono text-wb-text-secondary hover:text-wb-text-primary transition-colors"
-            >
-              {'```'}
-            </button>
-            <div className="w-px h-4 bg-wb-border-subtle mx-1" />
-            <button
-              type="button"
-              onClick={() => insertMarkdown('\n- ', '', '列表项')}
-              title="无序列表"
-              className="p-1.5 rounded-xl hover:bg-wb-bg-surface text-wb-text-secondary hover:text-wb-text-primary transition-colors"
-            >
-              <List className="w-3.5 h-3.5" />
-            </button>
-            <button
-              type="button"
-              onClick={() => insertMarkdown('\n- [ ] ', '', '待办任务')}
-              title="任务清单"
-              className="p-1.5 rounded-xl hover:bg-wb-bg-surface text-wb-text-secondary hover:text-wb-text-primary transition-colors"
-            >
-              <CheckSquare className="w-3.5 h-3.5" />
-            </button>
-            <button
-              type="button"
-              onClick={() => insertMarkdown('[', '](https://example.com)', '链接描述')}
-              title="超链接"
-              className="p-1.5 rounded-xl hover:bg-wb-bg-surface text-wb-text-secondary hover:text-wb-text-primary transition-colors"
-            >
-              <LinkIcon className="w-3.5 h-3.5" />
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                insertMarkdown(
-                  '\n| 模块 | 说明 | 内存 |\n|---|---|---|\n| FastAPI | 核心 API 服务 | ~180MB |\n| SQLite | 本地轻量化存储 | 零内存 |\n'
-                )
-              }
-              title="表格"
-              className="p-1.5 rounded-xl hover:bg-wb-bg-surface text-wb-text-secondary hover:text-wb-text-primary transition-colors"
-            >
-              <TableIcon className="w-3.5 h-3.5" />
-            </button>
-            <div className="w-px h-4 bg-wb-border-subtle mx-1" />
-            <label className="cursor-pointer inline-flex items-center gap-1 px-2 py-1 rounded-xl hover:bg-wb-bg-surface text-xs text-wb-text-secondary hover:text-wb-text-primary transition-colors">
-              <ImageIcon className="w-3.5 h-3.5" />
-              <span>插图</span>
-              <input type="file" accept="image/*" onChange={handleUploadImage} className="hidden" />
-            </label>
-            <EmojiToolbarButton onInsert={(text) => insertMarkdown(text)} />
+        <section className="rounded-2xl border border-wb-border-subtle bg-wb-bg-elevated shadow-sm" aria-label="正文编辑器"
+          onKeyDown={(event) => {
+            if ((event.ctrlKey || event.metaKey) && event.key === 'Enter' && !event.nativeEvent.isComposing) {
+              event.preventDefault();
+              void handleSubmit(event);
+            }
+          }}>
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-t-2xl border-b border-wb-border-subtle bg-wb-bg-surface px-3 py-2.5">
+            <div className={editorTabs} role="group" aria-label="编辑模式">
+              <button type="button" className={editorTab} aria-pressed={editorMode === 'markdown'} disabled={inlineUploading > 0} onClick={() => switchEditorMode('markdown')}>
+                <Code className="h-3.5 w-3.5" /> Markdown
+              </button>
+              <button type="button" className={editorTab} aria-pressed={editorMode === 'rich'} disabled={inlineUploading > 0} onClick={() => switchEditorMode('rich')}>
+                <FileText className="h-3.5 w-3.5" /> 富文本
+              </button>
+            </div>
+            {editorMode === 'markdown' && <div className={editorTabs} role="group" aria-label="Markdown 视图">
+              {editorViews.map(({ id, label, Icon }) => (
+                <button key={id} type="button" className={editorTab} aria-pressed={viewMode === id} onClick={() => setViewMode(id)}>
+                  <Icon className="h-3.5 w-3.5" /> {label}
+                </button>
+              ))}
+            </div>}
           </div>
-        )}
+          {editorMode === 'rich' ? (
+            <Suspense fallback={<p className="wb-author-pane-body p-6 text-sm text-wb-text-muted" role="status">正在载入富文本编辑器…</p>}>
+              <RichTextEditor key={documentRevision.current} value={contentMd} onChange={(markdown) => saveToLocal(title, markdown, categoryId)} uploadImage={uploadInlineImage} />
+            </Suspense>
+          ) : (
+            <>
+              {viewMode !== 'preview' && (
+                <div className="wb-author-toolbar relative" role="group" aria-label="Markdown 工具">
+                  <button
+                    type="button"
+                    onClick={() => insertMarkdown('**', '**', '加粗文本')}
+                    title="粗体"
+                    className="wb-author-tool"
+                  >
+                    <Bold className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => insertMarkdown('*', '*', '斜体文本')}
+                    title="斜体"
+                    className="wb-author-tool"
+                  >
+                    <Italic className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => insertMarkdown('\n## ', '', '二级标题')}
+                    title="标题"
+                    className="wb-author-tool"
+                  >
+                    <Heading2 className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => insertMarkdown('\n> ', '', '引用文案')}
+                    title="引用"
+                    className="wb-author-tool"
+                  >
+                    <Quote className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => insertMarkdown('`', '`', 'code')}
+                    title="行内代码"
+                    className="wb-author-tool"
+                  >
+                    <Code className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => insertMarkdown('\n```python\n# 示例代码\n', '\n```\n', '')}
+                    title="代码块"
+                    className="wb-author-tool font-mono text-xs"
+                  >
+                    {'```'}
+                  </button>
+                  <span className="wb-author-tool-divider" />
+                  <button
+                    type="button"
+                    onClick={() => insertMarkdown('\n- ', '', '列表项')}
+                    title="无序列表"
+                    className="wb-author-tool"
+                  >
+                    <List className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => insertMarkdown('\n- [ ] ', '', '待办任务')}
+                    title="任务清单"
+                    className="wb-author-tool"
+                  >
+                    <CheckSquare className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => insertMarkdown('[', '](https://example.com)', '链接描述')}
+                    title="超链接"
+                    className="wb-author-tool"
+                  >
+                    <LinkIcon className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      insertMarkdown(
+                        '\n| 模块 | 说明 | 内存 |\n|---|---|---|\n| FastAPI | 核心 API 服务 | ~180MB |\n| SQLite | 本地轻量化存储 | 零内存 |\n'
+                      )
+                    }
+                    title="表格"
+                    className="wb-author-tool"
+                  >
+                    <TableIcon className="w-3.5 h-3.5" />
+                  </button>
+                  <span className="wb-author-tool-divider" />
+                  <label className="cursor-pointer text-xs">
+                    <ImageIcon className="w-3.5 h-3.5" />
+                    <span>插图</span>
+                    <input type="file" accept="image/*" onChange={handleUploadImage} className="hidden" />
+                  </label>
+                  <EmojiToolbarButton onInsert={(text) => insertMarkdown(text)} />
+                  <span className="wb-author-tool-divider" />
+                  <details ref={insertMenuRef} className="md:relative" onBlur={(event) => {
+                    if (!event.currentTarget.contains(event.relatedTarget)) event.currentTarget.open = false;
+                  }} onKeyDown={(event) => {
+                    if (event.key === 'Escape' && event.currentTarget.open) {
+                      event.currentTarget.open = false;
+                      event.currentTarget.querySelector('summary')?.focus();
+                    }
+                  }}>
+                    <summary className="flex min-h-8 cursor-pointer list-none items-center gap-1.5 rounded-lg px-2 text-xs font-medium text-wb-text-secondary hover:bg-wb-bg-subtle [&::-webkit-details-marker]:hidden">
+                      <FileText className="h-3.5 w-3.5" /> 模板与声明 <ChevronDown className="h-3 w-3" />
+                    </summary>
+                    <div className="absolute end-3 top-full z-20 mt-1 w-56 max-w-[calc(100vw-4rem)] rounded-xl border border-wb-border-subtle bg-wb-bg-elevated p-1.5 shadow-lg md:end-0">
+                      <p className="px-2 py-1 text-xs font-medium text-wb-text-muted">写作模板</p>
+                      {[...articleTemplates].sort((a, b) => postType === 'news' ? Number(b.label === '社区日报') - Number(a.label === '社区日报') : 0).map(({ label, description, markdown }) => (
+                        <button type="button" key={label} className="block w-full rounded-lg px-2 py-1.5 text-left text-xs hover:bg-wb-bg-subtle"
+                          onClick={() => insertArticleBlock(markdown)}>
+                          <span className="font-medium text-wb-text-primary">{label}</span>
+                          <span className="mt-0.5 block text-wb-text-muted">{description}</span>
+                        </button>
+                      ))}
+                      <p className="mt-1 border-t border-wb-border-subtle px-2 pb-1 pt-2 text-xs font-medium text-wb-text-muted">文章声明</p>
+                      {articleStatements.map(({ label, markdown }) => (
+                        <button type="button" key={label} className="block w-full rounded-lg px-2 py-1.5 text-left text-xs text-wb-text-primary hover:bg-wb-bg-subtle"
+                          onClick={() => insertArticleBlock(markdown)}>{label}</button>
+                      ))}
+                    </div>
+                  </details>
+                </div>
+              )}
+              <div className="wb-author-panes" data-view={viewMode}>
+                <div className="wb-author-pane min-w-0" hidden={viewMode === 'preview'}>
+                  <div className="border-b border-wb-border-subtle px-4 py-2 text-xs font-medium text-wb-text-secondary">Markdown 源码</div>
+                  <textarea
+                    ref={textareaRef}
+                    value={contentMd}
+                    aria-label="Markdown 正文"
+                    spellCheck={false}
+                    onChange={(e) => saveToLocal(title, e.target.value, categoryId)}
+                    onKeyDown={(e) => {
+                      if ((!e.ctrlKey && !e.metaKey) || e.nativeEvent.isComposing) return;
+                      const shortcut = e.key.toLowerCase();
+                      if (shortcut === 'b') { e.preventDefault(); insertMarkdown('**', '**', '加粗文本'); }
+                      if (shortcut === 'i') { e.preventDefault(); insertMarkdown('*', '*', '斜体文本'); }
+                      if (shortcut === 'k') { e.preventDefault(); insertMarkdown('[', '](https://)', '链接描述'); }
+                    }}
+                    onPaste={handlePaste}
+                    onDrop={handleDrop}
+                    onDragOver={(e) => { if (e.dataTransfer.types.includes('Files')) e.preventDefault(); }}
+                    placeholder="从这里开始写作，或插入一个模板…"
+                    className="wb-author-pane-body block w-full resize-none bg-transparent px-4 py-5 font-mono text-base leading-7 text-wb-text-primary outline-none placeholder:text-wb-text-muted focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-wb-border-strong md:px-6 md:text-sm"
+                  />
+                </div>
+                {viewMode !== 'edit' && (
+                  <div className="wb-author-pane min-w-0 bg-wb-bg-surface">
+                    <div className="border-b border-wb-border-subtle px-4 py-2 text-xs font-medium text-wb-text-secondary">实时预览</div>
+                    <MarkdownPreview title={previewTitle} markdown={previewMarkdown} />
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-b-2xl border-t border-wb-border-subtle bg-wb-bg-surface px-4 py-2.5 text-xs text-wb-text-muted">
+            <span role="status">{inlineUploading ? '正在上传正文图片…' : `${charCount} 字符 · 预计阅读 ${estimatedMinutes} 分钟`}</span>
+            <span className="hidden sm:inline"><kbd className="font-mono">Ctrl / ⌘ + Enter</kbd> 快捷发布</span>
+          </div>
+        </section>
 
-        {/* 编写 / 预览双视图 */}
-        {viewMode === 'edit' ? (
-          <div className="space-y-2">
-            <textarea
-              ref={textareaRef}
-              required
-              rows={14}
-              value={contentMd}
-              onChange={(e) => saveToLocal(title, e.target.value, categoryId)}
-              onKeyDown={(e) => {
-                if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-                  e.preventDefault();
-                  handleSubmit(e);
-                } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
-                  e.preventDefault();
-                  insertMarkdown('**', '**', '加粗文本');
-                } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'i') {
-                  e.preventDefault();
-                  insertMarkdown('*', '*', '斜体文本');
-                } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
-                  e.preventDefault();
-                  insertMarkdown('[', '](https://)', '链接描述');
-                }
-              }}
-              onPaste={handlePaste}
-              onDrop={handleDrop}
-              onDragOver={(e) => e.preventDefault()}
-              placeholder={contentFormat === 'plain' ? '在此输入正文，换行会原样保留，不会解析 Markdown 符号...' : '在此输入正文，支持 Markdown 语法与代码块...'}
-              className="w-full p-4 text-xs md:text-sm bg-wb-bg-subtle border border-wb-border-subtle rounded-2xl focus:outline-none focus:border-wb-border-strong text-wb-text-primary resize-y leading-relaxed placeholder:text-wb-text-muted ${contentFormat === 'markdown' ? 'font-mono' : ''}"
-            />
+        <div className="space-y-2">
             {/* 九宫格相册：最多 10 张，可拖动排序（朋友圈式发图） */}
             <div className="mt-3">
               <div className="flex items-center justify-between mb-2">
@@ -1790,61 +1863,7 @@ export const Editor: React.FC<Props> = ({
               </p>
             </div>
 
-            {/* 字数统计与快捷键指南 */}
-            <div className="flex items-center justify-between text-xs text-wb-text-muted font-mono px-1 flex-wrap gap-2">
-              <div className="flex items-center gap-3">
-                <span>约 {contentMd.trim().length} 字</span>
-                <span>·</span>
-                <span>{contentMd.split('\n').filter(Boolean).length} 个段落</span>
-                <span>·</span>
-                <span>预计阅读 {Math.max(1, Math.ceil(contentMd.trim().length / 350))} 分钟</span>
-              </div>
-              <span className="hidden sm:inline text-2xs text-wb-text-secondary">
-                支持 <kbd className="px-1 py-0.5 rounded bg-wb-bg-subtle border border-wb-border-subtle">Ctrl+Enter</kbd> 快捷发布
-                {contentFormat === 'markdown' && (
-                  <> · <kbd className="px-1 py-0.5 rounded bg-wb-bg-subtle border border-wb-border-subtle">Ctrl+B</kbd> 粗体</>
-                )}
-                {contentFormat === 'plain' && ' · 纯文本模式：换行原样保留，不解析 Markdown 符号'}
-              </span>
-            </div>
-          </div>
-        ) : (
-          <div className="w-full min-h-[350px] p-6 bg-wb-bg-subtle border border-wb-border-subtle rounded-2xl overflow-y-auto">
-            {contentMd.trim() ? (
-              <div className={`max-w-none text-wb-text-primary leading-relaxed space-y-4 ${contentFormat === 'markdown' ? 'prose dark:prose-invert' : ''}`}>
-                <h1 className="text-xl md:text-2xl font-bold border-b border-wb-border-subtle pb-2">
-                  {title || '（未命名文章）'}
-                </h1>
-                {contentFormat === 'plain' ? (
-                  <div className="whitespace-pre-wrap break-words text-sm md:text-base">{contentMd}</div>
-                ) : (
-                <ReactMarkdown
-                  remarkPlugins={[remarkGfm, remarkBreaks]}
-                  components={{
-                    ...mdTableComponents,
-                    code({ inline, className, children, ...props }: any) {
-                      const match = /language-(\w+)/.exec(className || '');
-                      return !inline && match ? (
-                        <CodeBlock language={match[1]} value={String(children).replace(/\n$/, '')} />
-                      ) : (
-                        <code className="px-1.5 py-0.5 rounded-lg bg-wb-bg-subtle font-mono text-xs" {...props}>
-                          {children}
-                        </code>
-                      );
-                    },
-                  }}
-                >
-                  {contentMd}
-                </ReactMarkdown>
-                )}
-              </div>
-            ) : (
-              <div className="py-20 text-center text-xs text-wb-text-muted">
-                暂无排版内容，请在「编写」模式下输入 Markdown 语法
-              </div>
-            )}
-          </div>
-        )}
+        </div>
 
         {/* 进阶配置栏 (统一采用符合黑白钛灰工业主题的 CustomDropdown) */}
         <div className="pt-4 border-t border-wb-border-subtle grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-xs">
