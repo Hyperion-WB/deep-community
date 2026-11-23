@@ -921,11 +921,16 @@ export const PostDetailPopup: React.FC<PostDetailPopupProps> = ({ postId, target
     }
   };
 
-  // 快捷键 C 唤起讨论抽屉
+  // 快捷键 C 唤起讨论抽屉；但 Ctrl/Cmd+C 必须放行，不能抢系统的复制
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
-      const activeTag = document.activeElement?.tagName.toLowerCase();
-      if (activeTag === 'input' || activeTag === 'textarea') return;
+      // 组合键（Ctrl+C / Cmd+C / Alt+C）一律不处理，交给浏览器复制
+      if (e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return;
+      const active = document.activeElement as HTMLElement | null;
+      const activeTag = active?.tagName?.toLowerCase() || '';
+      if (activeTag === 'input' || activeTag === 'textarea' || activeTag === 'select' || active?.isContentEditable) return;
+      // 有选中文本时也不抢快捷键：用户可能刚选完字准备复制
+      if (window.getSelection()?.toString()) return;
       if (e.key === 'c' || e.key === 'C') {
         e.preventDefault();
         setCommentDrawerOpen((prev) => !prev);
