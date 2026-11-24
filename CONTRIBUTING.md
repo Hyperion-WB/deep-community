@@ -28,7 +28,7 @@ docker compose up -d --build
 ```bash
 cd backend
 python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements.lock.txt   # 锁定版本，与 CI 一致；或 requirements.txt 取最新
 uvicorn app.main:app --reload --port 8000
 ```
 
@@ -42,6 +42,15 @@ npm run dev
 
 > 本地开发可设置 `ENVIRONMENT=development`，未配置 `JWT_SECRET_KEY` 时后端会生成进程级临时密钥（重启后登录态失效）。
 
+### 运行测试
+
+```bash
+cd backend
+ENVIRONMENT=development JWT_SECRET_KEY=any-test-value python -m pytest -q
+```
+
+`backend/pytest.ini` 已配置好测试发现规则与异步模式。当前共 156 项测试，CI 每次 PR 都会执行；改动后端逻辑时请确保全部通过。
+
 ## 分支与提交
 
 - 从 `main` 切出：`feat/xxx`、`fix/xxx`、`docs/xxx`
@@ -53,10 +62,11 @@ npm run dev
 ## PR 要求
 
 1. `npx tsc -b`、`npx oxlint src`、`npm run build` 通过
-2. 后端改动至少 `python -m compileall backend/app` 通过
+2. 后端改动至少 `python -m compileall backend/app` 通过，并运行 `python -m pytest -q`（须全绿）
 3. 涉及 UI 的改动附截图或录屏
 4. 说明「改了什么、为什么改、如何验证」
 5. 不要提交 `.env`、上传文件、数据库文件、日志或任何真实密钥
+6. 新增/升级 Python 依赖时，同步更新 `requirements.txt` 与 `requirements.lock.txt`，确保 CI 用锁定版本可复现安装
 
 ## 代码风格
 

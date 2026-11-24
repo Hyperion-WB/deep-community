@@ -847,6 +847,11 @@ class TestOGPageGeneration:
         post.content_md = content_md
         post.cover_image = cover_image
         post.id = uuid.uuid4()
+        # generate_post_og_html 会把 created_at/updated_at 序列化进 JSON-LD，
+        # MagicMock 默认返回的 MagicMock 不可被 json.dumps 序列化，必须设为真实时间。
+        now = datetime.now(timezone.utc)
+        post.created_at = now
+        post.updated_at = now
         return post
 
     def test_generate_post_og_html_基本帖子_包含必要meta标签(self):

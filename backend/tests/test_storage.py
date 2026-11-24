@@ -88,6 +88,7 @@ async def test_save_upload_image_local_mode(monkeypatch, tmp_path):
 # 3. S3 / Cloudflare R2 模式与优雅降级测试
 @pytest.mark.asyncio
 async def test_save_upload_image_s3_success(monkeypatch):
+    monkeypatch.setattr(settings, "S3_ENABLED", True)
     monkeypatch.setattr(settings, "STORAGE_TYPE", "s3")
     monkeypatch.setattr(settings, "S3_ENDPOINT", "https://test-account.r2.cloudflarestorage.com")
     monkeypatch.setattr(settings, "S3_ACCESS_KEY", "mock_ak")
@@ -109,6 +110,7 @@ async def test_save_upload_image_s3_success(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_save_upload_image_s3_failure_fallback_to_local(monkeypatch, tmp_path):
+    monkeypatch.setattr(settings, "S3_ENABLED", True)
     monkeypatch.setattr(settings, "STORAGE_TYPE", "s3")
     monkeypatch.setattr(settings, "UPLOAD_DIR", str(tmp_path))
 
@@ -127,6 +129,14 @@ async def test_save_upload_image_s3_failure_fallback_to_local(monkeypatch, tmp_p
 
 # 4. 连通性诊断测试
 def test_s3_connection_diagnostics(monkeypatch):
+    # 开关关闭时应明确提示对象存储已停用
+    monkeypatch.setattr(settings, "S3_ENABLED", False)
+    diag = check_s3_connection()
+    assert diag["success"] is False
+    assert "S3_ENABLED=false" in diag["message"]
+
+    # 开关打开但凭证不全时提示缺失凭证
+    monkeypatch.setattr(settings, "S3_ENABLED", True)
     monkeypatch.setattr(settings, "S3_ENDPOINT", None)
     diag = check_s3_connection()
     assert diag["success"] is False

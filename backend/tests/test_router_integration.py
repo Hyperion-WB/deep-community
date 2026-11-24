@@ -100,21 +100,28 @@ class TestAuthRoutes:
                     "password": "Password123!"
                 })
             assert resp.status_code == status.HTTP_400_BAD_REQUEST
-            assert "已被注册" in resp.json()["detail"]
+            # 提示文案已更新为「该用户名已被占用」
+            assert "已被占用" in resp.json()["detail"]
         finally:
             app.dependency_overrides.clear()
 
     @pytest.mark.asyncio
     async def test_register_无效邀请码_返回400(self):
         mock_db = AsyncMock()
-        # 第一次查询查用户名 -> None (无重复)
-        mock_res_user = MagicMock()
-        mock_res_user.scalar_one_or_none.return_value = None
-        # 第二次查询查邀请码 -> None (未找到或无效)
-        mock_res_invite = MagicMock()
-        mock_res_invite.scalar_one_or_none.return_value = None
 
-        mock_db.execute.side_effect = [mock_res_user, mock_res_invite]
+        # 按查询目标动态返回结果，避免依赖调用顺序（注册流程会因邮箱验证等配置改变查询次数）
+        def fake_execute(stmt):
+            sql = str(stmt).lower()
+            mock_res = MagicMock()
+            if "invite_codes" in sql:
+                # 邀请码查询：返回未找到
+                mock_res.scalar_one_or_none.return_value = None
+            else:
+                # 用户名/邮箱占用查询：均无冲突
+                mock_res.scalar_one_or_none.return_value = None
+            return mock_res
+
+        mock_db.execute.side_effect = fake_execute
 
         app.dependency_overrides[get_db] = lambda: mock_db
         try:
@@ -356,9 +363,26 @@ class TestSystemRoutes:
 
     @pytest.mark.asyncio
     async def test_health_check_探针可用_返回healthy(self):
-        transport = ASGITransport(app=app)
-        async with AsyncClient(transport=transport, base_url="http://test") as ac:
-            resp = await ac.get("/api/healthz")
+        # healthz 现在会真实连接数据库执行 SELECT 1，测试环境没有 DB，
+        # 需 mock 掉 engine.connect() 让探针判定数据库可用。
+        mock_conn = AsyncMock()
+        mock_conn.execute = AsyncMock(return_value=MagicMock())
+        mock_ctx = MagicMock()
+        mock_ctx.__aenter__ = AsyncMock(return_value=mock_conn)
+        mock_ctx.__aexit__ = AsyncMock(return_value=None)
+
+        import app.core.database as db_module
+        # AsyncEngine.connect 是只读属性，改为整体替换模块级 engine 引用
+        original_engine = db_module.engine
+        db_module.engine = MagicMock(return_value=mock_ctx)
+        db_module.engine.connect = MagicMock(return_value=mock_ctx)
+        try:
+            transport = ASGITransport(app=app)
+            async with AsyncClient(transport=transport, base_url="http://test") as ac:
+                resp = await ac.get("/api/healthz")
+        finally:
+            db_module.engine = original_engine
+
         assert resp.status_code == status.HTTP_200_OK
         data = resp.json()
         assert data["status"] == "healthy"

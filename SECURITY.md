@@ -4,8 +4,10 @@
 
 请**不要**通过公开 Issue 报告安全漏洞。
 
-- 邮件：`security@example.com`（替换为你的真实邮箱）
-- 或在 GitHub 仓库使用 **Security → Report a vulnerability**（私密报告）
+- **首选**：在本仓库点击 **Security → Report a vulnerability** 提交私密报告
+  （需维护者在 Settings → Security 中开启 Private vulnerability reporting）。
+- 若该入口未开启，请通过 GitHub 私信联系维护者
+  （[@Hyperion-WB](https://github.com/Hyperion-WB)），切勿公开披露利用细节。
 
 请尽量包含：影响版本、复现步骤、影响范围、修复建议。我们会在 72 小时内确认收到，并在修复后公开致谢（如果你愿意）。
 

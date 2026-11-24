@@ -86,7 +86,8 @@ async def test_list_posts_cached_response(mock_redis):
             "poll_id": None
         }
     ]
-    cache_key = "cache:posts:cat_0_all_type_all_tag_none_sort_latest"
+    # 缓存键必须包含 size（默认 50），与 list_posts 中的 cache_key 构造保持一致
+    cache_key = "cache:posts:cat_0_all_type_all_tag_none_sort_latest_size_50"
     await set_cached_json(cache_key, fake_posts, ttl=60)
 
     # 模拟 DB (因为命中缓存，DB 不应被执行)

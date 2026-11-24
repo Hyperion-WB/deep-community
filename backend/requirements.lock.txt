@@ -1,0 +1,30 @@
+# ==============================================================================
+# 后端依赖锁定文件（CI / 生产复现用）
+# 由 requirements.txt 的声明版本在 2026-11-24 解析生成，已通过 156 项测试验证。
+# 更新方式：先改 requirements.txt，再运行 pip install -r requirements.txt
+#          并重新导出本文件，确认测试全绿后一起提交。
+# 说明：passlib 未在项目代码中使用，仅为 bcrypt 的历史依赖声明，保留无副作用。
+# ==============================================================================
+aiofiles==25.1.0
+alembic==1.20.1
+APScheduler==3.11.3
+asyncpg==0.32.0
+bcrypt==5.0.0
+bleach==6.4.0
+boto3==1.44.10
+email-validator==2.4.0
+fastapi==0.165.0
+greenlet==3.5.6
+httpx==0.28.1
+passlib==1.9.5
+pillow==13.0.0
+pydantic==2.14.4
+pydantic-settings==2.16.3
+python-jose==3.5.0
+python-multipart==0.0.34
+pytest==9.2.0
+pytest-asyncio==1.5.0
+redis==8.2.0
+ruff==0.17.6
+SQLAlchemy==2.1.9
+uvicorn==0.54.0
