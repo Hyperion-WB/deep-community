@@ -102,7 +102,7 @@ export interface SystemSettingItem {
 export interface PostSimple {
   id: string;
   title: string;
-  post_type: 'post' | 'news';
+  post_type: 'post' | 'news' | 'food_topic';
   status: string;
   is_pinned: boolean;
   is_essence?: boolean; // 精华贴 / 推荐标识 (Staff Pick)

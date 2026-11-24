@@ -1,7 +1,7 @@
 """404 游戏平台：注册中心 / 赛季积分 / 反作弊 / 对战。"""
 import uuid as _uuid
 
-from sqlalchemy import Text, BigInteger, text, Boolean, Column, DateTime, Float, ForeignKey, Integer,     JSON, Numeric, String, UniqueConstraint
+from sqlalchemy import Text, BigInteger, text, Boolean, Column, Date, DateTime, Float, ForeignKey, Integer,     JSON, Numeric, String, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 
 from app.core.database import Base
@@ -58,6 +58,15 @@ class SeasonScore(Base):
     updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
 
     __table_args__ = (UniqueConstraint("season_id", "game", "user_id", name="uq_season_score"),)
+
+
+class DouDizhuCheckIn(Base):
+    """斗地主每日签到奖励，按账号和站点自然日去重。"""
+    __tablename__ = "doudizhu_check_ins"
+
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    check_in_day = Column(Date, primary_key=True, index=True)
+    reward = Column(Integer, nullable=False)
 
 
 class SeasonSnapshot(Base):

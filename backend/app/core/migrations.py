@@ -784,6 +784,93 @@ MIGRATIONS: list[tuple[str, list[str]]] = [
     ("20261120_nickname_extra_quota", [
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS nickname_extra_quota INTEGER NOT NULL DEFAULT 0;",
     ]),
+    # 美食广场 + 午餐转盘
+    ("20261122_food_and_lunch", [
+        """CREATE TABLE IF NOT EXISTS food_cards (
+            id UUID PRIMARY KEY,
+            topic_post_id UUID NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+            user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            group_id UUID NULL REFERENCES group_rooms(id) ON DELETE SET NULL,
+            dish_names JSONB NOT NULL DEFAULT '[]'::jsonb,
+            content TEXT NOT NULL DEFAULT '',
+            image_urls JSONB NOT NULL DEFAULT '[]'::jsonb,
+            meal_type VARCHAR(8) NOT NULL DEFAULT 'lunch',
+            source VARCHAR(8) NOT NULL DEFAULT 'manual',
+            like_count INTEGER NOT NULL DEFAULT 0,
+            comment_count INTEGER NOT NULL DEFAULT 0,
+            status VARCHAR(8) NOT NULL DEFAULT 'visible',
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        );""",
+        "CREATE INDEX IF NOT EXISTS ix_food_cards_topic_time ON food_cards (topic_post_id, created_at DESC);",
+        "CREATE INDEX IF NOT EXISTS ix_food_cards_user_time ON food_cards (user_id, created_at DESC);",
+        """CREATE TABLE IF NOT EXISTS food_card_comments (
+            id UUID PRIMARY KEY,
+            card_id UUID NOT NULL REFERENCES food_cards(id) ON DELETE CASCADE,
+            user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            parent_id UUID NULL REFERENCES food_card_comments(id) ON DELETE CASCADE,
+            content TEXT NOT NULL DEFAULT '',
+            emoji_key VARCHAR(32) NULL,
+            status VARCHAR(8) NOT NULL DEFAULT 'visible',
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        );""",
+        "CREATE INDEX IF NOT EXISTS ix_food_card_comments_card_time ON food_card_comments (card_id, created_at DESC);",
+        """CREATE TABLE IF NOT EXISTS lunch_pools (
+            id UUID PRIMARY KEY,
+            group_id UUID NOT NULL REFERENCES group_rooms(id) ON DELETE CASCADE,
+            date DATE NOT NULL,
+            status VARCHAR(8) NOT NULL DEFAULT 'open',
+            freeze_at TIMESTAMPTZ NULL,
+            settings JSONB NOT NULL DEFAULT '{}'::jsonb,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+            UNIQUE (group_id, date)
+        );""",
+        """CREATE TABLE IF NOT EXISTS lunch_dishes (
+            id UUID PRIMARY KEY,
+            pool_id UUID NOT NULL REFERENCES lunch_pools(id) ON DELETE CASCADE,
+            user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            name VARCHAR(32) NOT NULL,
+            norm_name VARCHAR(32) NOT NULL,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+            UNIQUE (pool_id, user_id, norm_name)
+        );""",
+        "CREATE INDEX IF NOT EXISTS ix_lunch_dishes_pool ON lunch_dishes (pool_id);",
+        """CREATE TABLE IF NOT EXISTS lunch_spins (
+            id UUID PRIMARY KEY,
+            pool_id UUID NOT NULL REFERENCES lunch_pools(id) ON DELETE CASCADE,
+            user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            dish_id UUID NOT NULL REFERENCES lunch_dishes(id) ON DELETE CASCADE,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        );""",
+        "CREATE INDEX IF NOT EXISTS ix_lunch_spins_pool_user ON lunch_spins (pool_id, user_id);",
+        """CREATE TABLE IF NOT EXISTS wheel_presets (
+            id UUID PRIMARY KEY,
+            owner_type VARCHAR(8) NOT NULL DEFAULT 'user',
+            owner_id UUID NOT NULL,
+            name VARCHAR(32) NOT NULL DEFAULT '',
+            options JSONB NOT NULL DEFAULT '[]'::jsonb,
+            is_default BOOLEAN NOT NULL DEFAULT FALSE,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+            UNIQUE (owner_type, owner_id, name)
+        );""",
+        "CREATE INDEX IF NOT EXISTS ix_wheel_presets_owner ON wheel_presets (owner_type, owner_id);",
+        """INSERT INTO posts (id, author_id, category_id, title, content_md, content_html, content_type, post_type, status, comment_policy, is_pinned, is_essence, view_count, like_count, comment_count, collect_count, created_at, updated_at)
+           SELECT gen_random_uuid(),
+                  (SELECT id FROM users WHERE role = 'super_admin' ORDER BY created_at LIMIT 1),
+                  (SELECT id FROM categories WHERE slug = 'general'),
+                  '今天吃什么｜美食分享帖',
+                  '这里是全站的美食分享帖：晒出你今天吃的饭，也可以看看别人在吃什么。',
+                  '<p>这里是全站的美食分享帖：晒出你今天吃的饭，也可以看看别人在吃什么。</p>',
+                  'markdown', 'food_topic', 'published', 'open', TRUE, FALSE, 0, 0, 0, 0, now(), now()
+           WHERE NOT EXISTS (SELECT 1 FROM posts WHERE post_type = 'food_topic');""",
+    ]),
+    # 卡片评论点赞
+    ("20261123_food_comment_likes", [
+        "ALTER TABLE food_card_comments ADD COLUMN IF NOT EXISTS like_count INTEGER NOT NULL DEFAULT 0;",
+    ]),
+    # 早餐类型（breakfast 超过原 VARCHAR(8)）
+    ("20261123_food_breakfast_type", [
+        "ALTER TABLE food_cards ALTER COLUMN meal_type TYPE VARCHAR(16);",
+    ]),
 ]
 
 

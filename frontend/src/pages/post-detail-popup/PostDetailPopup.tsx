@@ -17,6 +17,7 @@ import { TableOfContents } from '../../components/TableOfContents';
 import { RelatedPosts } from '../../components/RelatedPosts';
 import { MentionTextarea } from '../../components/MentionTextarea';
 import { ReadingProgressBar } from '../../components/ReadingProgressBar';
+import { FoodTopic } from '../../components/FoodTopic';
 import { ReactionPicker, REACTION_LIST, type ReactionCounts } from '../../components/ReactionPicker';
 import { PostDetailSkeleton } from '../../components/Skeleton';
 import { useToast } from '../../components/Toast';
@@ -1452,6 +1453,16 @@ export const PostDetailPopup: React.FC<PostDetailPopupProps> = ({ postId, target
 
   if (loading && !post) {
     return <PostDetailSkeleton />;
+  }
+
+  if (post?.post_type === 'food_topic') {
+    // 美食帖是特殊类型：点开直接进入卡片流；portal 避免被祖先 transform 限制
+    return createPortal(
+      <div className="fixed inset-0 z-[200] bg-wb-bg-page overflow-y-auto">
+        <FoodTopic onClose={onBack} user={user} embedded />
+      </div>,
+      document.body,
+    );
   }
 
   if (!post) {

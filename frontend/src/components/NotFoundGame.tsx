@@ -1,5 +1,5 @@
 import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Home, Medal, Trophy, Clock } from 'lucide-react';
+import { Home, Medal, Trophy, Clock, Gamepad2, Spade } from 'lucide-react';
 import { apiClient } from '../api/client';
 import { CustomDropdown } from './CustomDropdown';
 
@@ -11,6 +11,7 @@ import type { Match } from "./minigames/BoardGame";
 const BoardGame = lazy(() =>
   import('./minigames/BoardGame').then((m) => ({ default: m.BoardGame }))
 );
+const DouDizhu = lazy(() => import('./minigames/DouDizhu'));
 const Snake = lazy(() =>
   import('./minigames/CanvasGames').then((m) => ({ default: m.Snake }))
 );
@@ -76,6 +77,11 @@ const RankCard: React.FC<{ title: string; url: string; season: string; reload: n
                   {r.rank}
                 </span>
                 <span className="flex-1 truncate text-wb-text-primary">{r.nickname || r.username}</span>
+                {r.breakdown?.doudizhu_check_in > 0 && (
+                  <span className="shrink-0 rounded-md bg-wb-bg-subtle px-1.5 py-0.5 text-wb-text-secondary">
+                    签到 +{r.breakdown.doudizhu_check_in}
+                  </span>
+                )}
                 <span className="font-mono text-wb-text-secondary">
                   {r.total_score ?? r.score}{unit || ''}
                 </span>
@@ -158,6 +164,10 @@ export const NotFoundGame: React.FC = () => {
   const [zones, setZones] = useState<Record<string, string>>({ solo: '单人摸鱼池', versus: '双人互坑局' });
   const [zone, setZone] = useState<'solo' | 'versus'>('solo');
   const [selected, setSelected] = useState('');
+  const [cardTable, setCardTable] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('game') === 'doudizhu' || params.has('room');
+  });
   const [season, setSeason] = useState('');
   const [seasons, setSeasons] = useState<string[]>([]);
   const [tiers, setTiers] = useState<string[]>([]);
@@ -165,6 +175,7 @@ export const NotFoundGame: React.FC = () => {
   const [entryMatch, setEntryMatch] = useState<Match>();
   const [deepGame, setDeepGame] = useState('');
   const [myId, setMyId] = useState('');
+  const [identityReady, setIdentityReady] = useState(false);
   const [battles, setBattles] = useState<{ items: Match[]; active?: Match | null }>({ items: [] });
   const [activeMatchId, setActiveMatchId] = useState<string | null>(null);
   const [battleRefresh, setBattleRefresh] = useState(0);
@@ -188,7 +199,8 @@ export const NotFoundGame: React.FC = () => {
     let alive = true;
     apiClient.get('/auth/me')
       .then((res) => { if (alive) setMyId(res.data?.id || ''); })
-      .catch(() => undefined);
+      .catch(() => undefined)
+      .finally(() => { if (alive) setIdentityReady(true); });
     return () => { alive = false; };
   }, [loggedIn]);
 
@@ -215,7 +227,7 @@ export const NotFoundGame: React.FC = () => {
         setBattles({ items, active });
 
         // 明确的深链或当前打开的棋局优先于自动进入另一局。
-        if (activeMatchId || new URLSearchParams(window.location.search).get("match")) return;
+        if (cardTable || activeMatchId || new URLSearchParams(window.location.search).get("match")) return;
         const begun = items.find((m) =>
           m.status === "playing" && m.inviter_id === myId &&
           !autoEnteredRef.current.has(m.id) &&
@@ -235,7 +247,7 @@ export const NotFoundGame: React.FC = () => {
     };
     void poll();
     return () => { controller.abort(); window.clearTimeout(timer); };
-  }, [loggedIn, myId, activeMatchId, battleRefresh, reportBattleResult]);
+  }, [loggedIn, myId, activeMatchId, battleRefresh, reportBattleResult, cardTable]);
 
   const GAME_NAME: Record<string, string> = { gomoku: '五子棋', xiangqi: '中国象棋', tictactoe: '井字棋' };
 
@@ -248,6 +260,7 @@ export const NotFoundGame: React.FC = () => {
         ? { ...match, status: action === "accept" ? "playing" : "declined" } : match) }));
       refreshBattles();
       if (action === 'accept') {
+        setCardTable(false);
         setDeepGame(m.game_code);
         setZone('versus');
         setSelected(m.game_code);
@@ -320,12 +333,17 @@ export const NotFoundGame: React.FC = () => {
   const bump = useCallback(() => setReload((n) => n + 1), []);
 
   return (
-    <div className="min-h-screen py-8 px-4 bg-wb-bg-page text-wb-text-primary">
-      <div className="max-w-5xl mx-auto space-y-5">
-        <header className="text-center space-y-1">
-          <p className="text-[56px] leading-none font-black tracking-tighter bg-gradient-to-br from-wb-text-primary to-wb-text-secondary bg-clip-text text-transparent select-none">404</p>
-          <h1 className="text-sm font-semibold">摸鱼游乐场 · 这个页面不存在，但游戏是真的</h1>
-          <p className="text-3xs text-wb-text-muted">赛季积分 = 难度系数 × 完成度 ÷ 用时，统一换算 0–100；每月结算发勋章</p>
+    <div className="min-h-screen bg-wb-bg-page px-3 py-5 text-wb-text-primary sm:px-6 sm:py-10">
+      <div className="mx-auto max-w-6xl space-y-4 sm:space-y-5">
+        <header className="flex flex-wrap items-center justify-between gap-4 rounded-3xl border border-wb-border-subtle bg-wb-bg-surface p-5 sm:p-7">
+          <div className="flex items-center gap-4">
+            <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-wb-bg-subtle text-wb-brand"><Gamepad2 className="h-6 w-6" aria-hidden="true" /></div>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">摸鱼游乐场</h1>
+              <p className="mt-1 text-sm text-wb-text-muted">单人小游戏、在线棋局与好友牌桌</p>
+            </div>
+          </div>
+          <a href="/" className="inline-flex items-center gap-2 rounded-xl border border-wb-border-subtle px-3 py-2 text-sm text-wb-text-secondary hover:bg-wb-bg-subtle"><Home className="h-4 w-4" /> 返回社区</a>
         </header>
 
         {inviteNotice && (
@@ -355,11 +373,15 @@ export const NotFoundGame: React.FC = () => {
         <div className="flex items-center justify-between gap-2 flex-wrap p-2 rounded-2xl bg-wb-bg-surface border border-wb-border-subtle">
           <div className="flex items-center gap-1.5">
             {(['solo', 'versus'] as const).map((z) => (
-              <button key={z} type="button" onClick={() => { setZone(z); setDeepGame(''); setEntryMatch(undefined); deepLockRef.current = ''; }}
-                className={`h-8 px-3 rounded-capsule text-2xs font-semibold whitespace-nowrap transition-colors ${zone === z ? 'bg-wb-text-primary text-wb-bg-page' : 'bg-wb-bg-subtle text-wb-text-secondary hover:text-wb-text-primary'}`}>
-                {zones[z]}
+              <button key={z} type="button" aria-pressed={!cardTable && zone === z} onClick={() => { setCardTable(false); setZone(z); setDeepGame(''); setEntryMatch(undefined); deepLockRef.current = ''; }}
+                className={`h-9 px-3 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors ${!cardTable && zone === z ? 'bg-wb-text-primary text-wb-bg-page' : 'bg-wb-bg-subtle text-wb-text-secondary hover:text-wb-text-primary'}`}>
+                {z === 'versus' ? '在线棋局' : zones[z]}
               </button>
             ))}
+            <button type="button" aria-pressed={cardTable} onClick={() => setCardTable(true)}
+              className={`inline-flex h-9 items-center gap-1.5 rounded-xl px-3 text-xs font-semibold whitespace-nowrap transition-colors ${cardTable ? 'bg-wb-text-primary text-wb-bg-page' : 'bg-wb-bg-subtle text-wb-text-secondary hover:text-wb-text-primary'}`}>
+              <Spade className="h-3.5 w-3.5" aria-hidden="true" /> 斗地主
+            </button>
           </div>
           <div className="flex items-center gap-1.5 text-2xs text-wb-text-muted">
             <Clock className="w-3.5 h-3.5" /> <span>赛季</span>
@@ -375,6 +397,11 @@ export const NotFoundGame: React.FC = () => {
           </div>
         </div>
 
+        {cardTable ? (
+          <Suspense fallback={<div className="py-16 text-center text-sm text-wb-text-muted">正在准备牌桌…</div>}>
+            <DouDizhu userId={loggedIn && !identityReady ? null : myId || undefined} onPointsChange={bump} />
+          </Suspense>
+        ) : <>
         {/* 游戏 tab（注册中心下发，懒加载） */}
         <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1">
           {zoneGames.map((g) => (
@@ -410,22 +437,24 @@ export const NotFoundGame: React.FC = () => {
           </Suspense>
         </div>
 
-        {/* 榜单区 */}
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
+        </>}
+
+        <section className="space-y-3" aria-label="赛季榜单">
+          <div className="flex flex-wrap items-center gap-2">
             <Medal className="w-4 h-4 text-wb-brand" />
             <h2 className="text-xs font-bold">{season} 赛季榜单</h2>
             <span className="text-3xs text-wb-text-muted">切换上方赛季可回看历史</span>
           </div>
+          <p className="text-xs text-wb-text-muted">当月斗地主签到每 100 积分折算总榜 1 分，最多加 3 分。赛季奖励仍需参加可计分的游戏。</p>
           <div className="grid sm:grid-cols-2 gap-3">
             <RankCard title="跨游戏总榜" url="/minigames/overall" season={season} reload={reload} unit=" 分" />
-            {current?.zone === 'solo' && current && (
+            {!cardTable && current?.zone === 'solo' && (
               <RankCard title={`${current.name} · 独立榜`} url={`/minigames/${current.code}/leaderboard`} season={season} reload={reload} />
             )}
             <RankCard title="连胜榜" url="/minigames/streak" season={season} reload={reload} unit=" 连胜" />
             <RankCard title="累计胜利榜" url="/minigames/wins" season={season} reload={reload} unit=" 胜" />
           </div>
-        </div>
+        </section>
 
         {/* 勋章说明 */}
         <div className="p-4 rounded-2xl bg-wb-bg-surface border border-wb-border-subtle space-y-2">
@@ -452,13 +481,6 @@ export const NotFoundGame: React.FC = () => {
           <p className="text-3xs text-wb-text-muted/70">
             游戏来源：huazie/flea-game、stringify/ChineseChessOnline（MIT）。和棋中断连胜，认输计负；AI 练习不计分。
           </p>
-        </div>
-
-        <div className="text-center">
-          <button type="button" onClick={() => { window.location.href = '/'; }}
-            className="inline-flex items-center gap-1.5 text-2xs font-semibold text-wb-text-secondary hover:text-wb-text-primary px-3 py-2">
-            <Home className="w-3.5 h-3.5" /> 回到首页
-          </button>
         </div>
       </div>
     </div>

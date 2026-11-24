@@ -77,7 +77,7 @@ export const ConfirmProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const modalElement = (
-    <Modal open={isOpen} onClose={handleCancel} widthClass="max-w-sm sm:max-w-md">
+    <Modal open={isOpen} onClose={handleCancel} widthClass="max-w-sm sm:max-w-md" zIndex={400}>
       <div className="relative p-6">
         <button
           type="button"

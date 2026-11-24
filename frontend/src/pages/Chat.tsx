@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { AvatarPreview } from '../components/AvatarPreview';
-import { Send, Search, RotateCcw, MessageSquare, Smile, ImagePlus, Loader2, Maximize2, Minimize2, MoreVertical, Trash2, Ban, User, X, ShieldAlert, ArrowLeft, Pin, BellOff, Bell, Users, Plus, Sparkles, UserPlus, UserMinus, LogOut, Crown, Shield, Globe, Lock, ShieldCheck, Megaphone, Edit3, AtSign, Reply, Check, Clock, FileText, CheckCircle2, Layers, ArrowUp, ArrowDown, History, BellRing, Wrench, Dices, ListOrdered, Feather, CalendarCheck, Timer, Medal, BarChart3, Terminal, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { Send, Search, RotateCcw, MessageSquare, Smile, ImagePlus, Loader2, Maximize2, Minimize2, MoreVertical, Trash2, Ban, User, X, ShieldAlert, ArrowLeft, Pin, BellOff, Bell, Users, Plus, Sparkles, UserPlus, UserMinus, LogOut, Crown, Shield, Globe, Lock, ShieldCheck, Megaphone, Edit3, AtSign, Reply, Check, Clock, FileText, CheckCircle2, Layers, ArrowUp, ArrowDown, History, BellRing, Wrench, Dices, ListOrdered, Feather, CalendarCheck, Timer, Medal, BarChart3, Terminal, PanelLeftClose, PanelLeftOpen, Utensils } from 'lucide-react';
 import { apiClient, refreshAccessToken, UPLOAD_TIMEOUT } from '../api/client';
 import { GroupBadge, GROUP_BADGE_NAMES } from '../components/GroupBadge';
 import { DiceCube } from '../components/minigames/DiceCube';
 import { SafeImage } from '../components/SafeImage';
 import { GroupActivitiesModal, FortuneOverlay, reportGroupExp, type FortuneResult } from '../components/GroupActivities';
+import { LunchWheel } from '../components/LunchWheel';
 import { useDialogA11y } from '../hooks/useDialogA11y';
 import { useImageDrop, DROP_HINT_CLASS } from '../hooks/useImageDrop';
 import type {
@@ -323,6 +324,9 @@ export const Chat: React.FC<Props> = ({
   const [isInviting, setIsInviting] = useState(false);
   // 工具箱 / 禁言 / 铭牌 / 群等级榜
   const [showToolbox, setShowToolbox] = useState(false);
+  const [showLunchWheel, setShowLunchWheel] = useState(false);
+  const [lunchTick, setLunchTick] = useState(0);
+  const [lunchBanner, setLunchBanner] = useState(false);
   const toolboxRef = useRef<HTMLDivElement | null>(null);
   const [memberAction, setMemberAction] = useState<{ type: 'mute' | 'badge'; member: any } | null>(null);
   const [muteMinutes, setMuteMinutes] = useState(30);
@@ -980,6 +984,11 @@ export const Chat: React.FC<Props> = ({
             // 飞花令：别人答对 / 开局 / 结算时刷新面板的诗句流与实时榜
             if (data.room_id === activeGroupIdRef.current) {
               setFeihuaTick((n) => n + 1);
+            }
+          } else if (data.type === 'lunch_update') {
+            // 群友加菜/删菜/改冻结时间：让打开着的转盘面板重新拉状态
+            if (data.room_id === activeGroupIdRef.current) {
+              setLunchTick((n) => n + 1);
             }
           } else if (data.type === 'feihua_self') {
             // 群内直接发诗句的判定结果：只回给发送者，不在群里发卡片
@@ -2888,6 +2897,26 @@ export const Chat: React.FC<Props> = ({
     }
   };
 
+  // 11:00 午餐提醒：每个群每天只弹一次，3 秒自动收起
+  useEffect(() => {
+    if (!activeGroupId || chatTab !== 'group') return;
+    const check = () => {
+      const now = new Date();
+      const minutes = now.getHours() * 60 + now.getMinutes();
+      if (minutes < 11 * 60 || minutes >= 11 * 60 + 5) return;
+      const key = `meal-reminder:${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}:${activeGroupId}`;
+      try {
+        if (localStorage.getItem(key)) return;
+        localStorage.setItem(key, '1');
+      } catch { /* 隐私模式忽略 */ }
+      setLunchBanner(true);
+      window.setTimeout(() => setLunchBanner(false), 3000);
+    };
+    check();
+    const timer = window.setInterval(check, 30000);
+    return () => window.clearInterval(timer);
+  }, [activeGroupId, chatTab]);
+
   const toolboxActions = [
     { key: 'mention', label: '@ 提及成员', hint: '选择群友', icon: AtSign, run: triggerMention },
     { key: 'chain', label: '成语接龙', hint: '机器人自动裁判 · 答对 +5 群经验', icon: ListOrdered, run: () => {
@@ -2902,6 +2931,9 @@ export const Chat: React.FC<Props> = ({
       void apiClient.post(`/chat/groups/${activeGroupId}/dice`)
         .then((res) => reportGroupExp(toast, res.data))
         .catch((err: any) => toast.error(err?.response?.data?.detail || '掷骰子失败'));
+    } },
+    { key: 'lunch', label: '今天吃什么', hint: '午餐转盘 · 群共享菜盘', icon: Utensils, run: () => {
+      setShowToolbox(false); setShowLunchWheel(true);
     } },
     { key: 'fortune', label: '每日求签', hint: '每天 2 次 · 每次 +2 群经验', icon: Sparkles, run: () => { void drawFortune(); } },
     { key: 'poll', label: '群投票', hint: '实时结果 · 首次投票 +2 群经验', icon: BarChart3, run: () => {
@@ -5529,6 +5561,29 @@ export const Chat: React.FC<Props> = ({
           onShareToGroup={(text) => { void handleSendMessage(undefined, text); }}
         />
       )}
+      {showLunchWheel && activeGroupId && (
+        <LunchWheel
+          groupId={activeGroupId}
+          groupName={activeGroup?.name}
+          onClose={() => setShowLunchWheel(false)}
+          refreshKey={lunchTick}
+          onTestReminder={() => {
+            setLunchBanner(true);
+            window.setTimeout(() => setLunchBanner(false), 3000);
+          }}
+        />
+      )}
+
+      {lunchBanner && (
+        <button
+          type="button"
+          onClick={() => { setLunchBanner(false); setShowLunchWheel(true); }}
+          className="fixed left-1/2 top-16 z-[140] -translate-x-1/2 px-4 py-2 rounded-capsule bg-wb-text-primary text-wb-bg-page text-xs font-bold shadow-2xl animate-[lunch-bounce_.6s_ease-out]"
+        >
+          🍚 午餐时间到，今天吃什么？
+        </button>
+      )}
+
       <FortuneOverlay data={fortune} onClose={() => setFortune(null)} />
 
       {showCheckinConfig && createPortal(

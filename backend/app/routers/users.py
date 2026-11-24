@@ -1245,7 +1245,7 @@ async def get_my_collections(
     return result
 
 NOTIFICATION_CATEGORY_TYPES = {
-    "interaction": ["comment", "reply", "like_post", "like_comment", "mention"],
+    "interaction": ["comment", "reply", "like_post", "like_comment", "mention", "food_comment", "food_reply", "food_like"],
     "follow": ["follow"],
     "system": ["system", "level_up", "level_down", "essence_post", "accepted_solution", "game_invite", "ai_daily_digest"],
 }

@@ -228,7 +228,7 @@ export const NotificationDrawer: React.FC<Props> = ({
     if (item.action_type === 'follow') return 'profile';
     if (['level_up', 'level_down', 'system'].includes(item.action_type)) return 'profile';
     // 互动类：仅当 target_id 不是自己的 UUID 时才视为帖子目标
-    if (['comment', 'reply', 'like_post', 'like_comment', 'accepted_solution', 'essence_post', 'mention'].includes(item.action_type)) {
+    if (['comment', 'reply', 'like_post', 'like_comment', 'accepted_solution', 'essence_post', 'mention', 'food_comment', 'food_reply', 'food_like'].includes(item.action_type)) {
       if (item.target_id && item.target_id !== selfUserId) return 'post';
       return 'profile';
     }
@@ -434,8 +434,8 @@ export const NotificationDrawer: React.FC<Props> = ({
                             {['group_apply', 'group_apply_approved', 'group_apply_rejected', 'group_invite', 'group_owner_transferred', 'group_kicked'].includes(item.action_type) && <Users className="w-4 h-4 text-wb-info" />}
                             {item.action_type === 'level_up' && <Award className="w-4 h-4" />}
                             {item.action_type === 'level_down' && <Sparkles className="w-4 h-4" />}
-                            {(item.action_type === 'comment' || item.action_type === 'reply') && <MessageSquare className="w-4 h-4" />}
-                            {item.action_type === 'like_post' && <Heart className="w-4 h-4" />}
+                            {['comment', 'reply', 'food_comment', 'food_reply'].includes(item.action_type) && <MessageSquare className="w-4 h-4" />}
+                            {['like_post', 'food_like'].includes(item.action_type) && <Heart className="w-4 h-4" />}
                             {item.action_type === 'like_comment' && <Heart className="w-4 h-4" />}
                             {item.action_type === 'accepted_solution' && <MessageSquare className="w-4 h-4" />}
                             {item.action_type === 'essence_post' && <Award className="w-4 h-4" />}
