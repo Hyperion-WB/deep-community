@@ -1,5 +1,8 @@
 from datetime import datetime, timezone
 from typing import Optional
+from zoneinfo import ZoneInfo
+
+SITE_TZ = ZoneInfo("Asia/Shanghai")
 
 def utc_now() -> datetime:
     """
