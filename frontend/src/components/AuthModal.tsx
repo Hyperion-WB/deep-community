@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { X, KeyRound, Mail, Lock, User, Sparkles, ArrowLeft } from 'lucide-react';
+import { X, KeyRound, Mail, Lock, User, Sparkles, ArrowLeft, QrCode } from 'lucide-react';
+import QRCode from 'qrcode';
 import { apiClient, formatApiErrorDetail } from '../api/client';
 import { SegmentedControl } from './SegmentedControl';
 import { Modal } from './Modal';
@@ -64,6 +65,58 @@ export const AuthModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
   const [captchaNeeded, setCaptchaNeeded] = useState(false);
   const [captchaToken, setCaptchaToken] = useState('');
   const [captchaKey, setCaptchaKey] = useState(0);
+  const [qrMode, setQrMode] = useState(false);
+  const [qrImage, setQrImage] = useState('');
+  const [qrStatus, setQrStatus] = useState('pending');
+  const [qrNonce, setQrNonce] = useState(0);
+  const qrCredentials = useRef<{ scan_token: string; exchange_token: string } | null>(null);
+
+  useEffect(() => {
+    if (!isOpen || !qrMode || tab !== 'login' || resetMode) return undefined;
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const createQr = async () => {
+      try {
+        const response = await apiClient.post('/auth/qr/create');
+        if (stopped) return;
+        qrCredentials.current = { scan_token: response.data.scan_token, exchange_token: response.data.exchange_token };
+        setQrImage(await QRCode.toDataURL(response.data.url, { width: 220, margin: 1, color: { dark: '#111827', light: '#ffffff' } }));
+        const poll = async () => {
+          if (stopped || !qrCredentials.current) return;
+          try {
+            const state = await apiClient.post('/auth/qr/status', qrCredentials.current);
+            if (stopped) return;
+            setQrStatus(state.data.status);
+            if (state.data.status === 'scanned') setQrStatus('scanned');
+            if (state.data.status === 'confirmed') {
+              const exchanged = await apiClient.post('/auth/qr/exchange', qrCredentials.current);
+              localStorage.setItem('access_token', exchanged.data.access_token);
+              onSuccess();
+              onClose();
+              return;
+            }
+          } catch {
+            if (!stopped) setQrStatus('expired');
+            return;
+          }
+          timer = setTimeout(poll, 1800);
+        };
+        timer = setTimeout(poll, 1200);
+      } catch {
+        if (!stopped) setQrStatus('unavailable');
+      }
+    };
+    setQrStatus('pending');
+    setQrImage('');
+    void createQr();
+    return () => {
+      stopped = true;
+      if (timer) clearTimeout(timer);
+      const credentials = qrCredentials.current;
+      qrCredentials.current = null;
+      if (credentials) void apiClient.post('/auth/qr/cancel', credentials).catch(() => {});
+    };
+  }, [isOpen, qrMode, tab, resetMode, qrNonce, onSuccess, onClose]);
 
   // 弹窗打开时探测可用登录方式与邮箱服务状态
   useEffect(() => {
@@ -323,6 +376,14 @@ export const AuthModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
     <>
       <Modal open={isOpen} onClose={onClose} widthClass="max-w-md">
         <div className="relative p-6 overflow-y-auto">
+        {!resetMode && tab === 'login' && (
+          <button type="button" onClick={() => setQrMode((value) => !value)}
+            aria-label={qrMode ? '返回账号登录' : '扫码登录'}
+            title={qrMode ? '返回账号登录' : '扫码登录'}
+            className="absolute left-4 top-4 z-30 grid h-9 w-9 place-items-center rounded-xl border border-wb-border-subtle bg-wb-bg-elevated text-wb-text-secondary shadow-sm transition-all hover:-rotate-3 hover:border-wb-border-strong hover:text-wb-text-primary">
+            {qrMode ? <ArrowLeft className="h-4 w-4" /> : <QrCode className="h-4 w-4 -rotate-6" />}
+          </button>
+        )}
         <button
           type="button"
           onClick={onClose}
@@ -331,8 +392,8 @@ export const AuthModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
           <X className="w-4 h-4" />
         </button>
 
-        <div className="flex justify-center mb-5">
-          {resetMode ? (
+        <div className={`flex justify-center ${qrMode ? 'mb-0' : 'mb-5'}`}>
+          {qrMode ? null : resetMode ? (
             <div className="flex items-center w-full">
               <button
                 type="button"
@@ -366,7 +427,41 @@ export const AuthModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
           )}
         </div>
 
-        {errorMsg && (
+        {qrMode && tab === 'login' && !resetMode ? (
+          <div className="flex min-h-[350px] flex-col items-center justify-center text-center">
+            <div className="relative flex h-60 w-60 items-center justify-center overflow-hidden rounded-[28px] border border-wb-border-subtle bg-white p-3.5 shadow-[0_18px_45px_rgba(0,0,0,0.10)]">
+              {qrImage ? (
+                <img src={qrImage} alt="电脑端登录二维码" className="h-full w-full" />
+              ) : (
+                <div className="flex flex-col items-center gap-2 text-wb-text-muted">
+                  <div className="h-7 w-7 animate-spin rounded-full border-2 border-wb-text-muted border-t-transparent" />
+                  <span className="text-[10px]">{qrStatus === 'unavailable' ? '扫码服务暂不可用' : '正在生成…'}</span>
+                </div>
+              )}
+              {qrStatus === 'scanned' && (
+                <div className="absolute inset-0 grid place-items-center bg-wb-bg-page/85 backdrop-blur-[2px]">
+                  <div className="rounded-2xl bg-wb-bg-surface px-4 py-3 text-xs font-semibold text-wb-text-primary shadow-lg">
+                    已扫码，请在手机上确认
+                  </div>
+                </div>
+              )}
+            </div>
+            <p className="mt-4 text-xs font-medium text-wb-text-secondary">
+              {qrStatus === 'scanned' ? '已扫码，请在手机端点击「确认登录」'
+                : qrStatus === 'confirmed' ? '登录成功，正在进入…'
+                  : qrStatus === 'expired' ? '二维码已失效'
+                    : qrStatus === 'unavailable' ? '扫码服务暂不可用，请使用账号密码登录'
+                      : '使用已登录的手机扫描二维码'}
+            </p>
+            {(qrStatus === 'expired' || qrStatus === 'unavailable') && (
+              <button type="button" onClick={() => setQrNonce((value) => value + 1)}
+                className="mt-3 inline-flex h-8 items-center rounded-capsule border border-wb-border-subtle bg-wb-bg-surface px-3 text-2xs font-semibold text-wb-text-secondary hover:bg-wb-bg-subtle">
+                刷新二维码
+              </button>
+            )}
+            <p className="mt-2 text-[10px] text-wb-text-muted">二维码 2 分钟内有效 · 请确认是本人操作</p>
+          </div>
+        ) : errorMsg && (
           <motion.div
             initial={{ opacity: 0, y: -6 }}
             animate={{ opacity: 1, y: 0 }}
@@ -392,7 +487,7 @@ export const AuthModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
           </p>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-3.5">
+        {!qrMode && <form onSubmit={handleSubmit} className="space-y-3.5">
           <motion.div layout className="space-y-3.5">
             {tab === 'register' && !resetMode && (
               <motion.div
@@ -653,7 +748,7 @@ export const AuthModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
               </div>
             </>
           )}
-        </form>
+        </form>}
         </div>
       </Modal>
 

@@ -4,6 +4,7 @@ import { Navbar } from './components/Navbar';
 import { AnnouncementTicker, type AnnouncementItem } from './components/AnnouncementTicker';
 import { AnnouncementModal } from './components/AnnouncementModal';
 import { AuthModal } from './components/AuthModal';
+import { QrLoginPage } from './components/QrLoginPage';
 import { FloatingBackToTop } from './components/FloatingBackToTop';
 import { NotificationDrawer } from './components/NotificationDrawer';
 import { BackgroundTextureLayer } from './components/BackgroundTextureLayer';
@@ -878,6 +879,8 @@ export const AppContent: React.FC = () => {
     : currentTab === 'profile' && selectedUsername
     ? `profile-${selectedUsername}`
     : currentTab;
+
+  if (new URLSearchParams(window.location.search).has('qr_login')) return <QrLoginPage />;
 
   return (
     // 背景交由 body 绘制，根容器透明，这样「背景质感」才能真正透出来

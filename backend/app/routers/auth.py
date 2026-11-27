@@ -2,12 +2,14 @@ from datetime import date, datetime, timezone
 from typing import Optional
 from urllib.parse import quote
 import asyncio
+import hashlib
+import secrets
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Response, Query
 from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, or_, func, update
+from sqlalchemy import select, or_, func, update, text
 from sqlalchemy.exc import IntegrityError
 from app.core.database import get_db, get_redis, is_mock_redis
 from app.core.config import settings
@@ -69,6 +71,165 @@ def _site_origin(request: Request) -> str:
     proto = request.headers.get("x-forwarded-proto") or request.url.scheme
     host = request.headers.get("host") or request.url.netloc
     return f"{proto}://{host}"
+
+
+def _qr_hash(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+async def _qr_session(db: AsyncSession, scan_token: str, exchange_token: str):
+    result = await db.execute(text(
+        "SELECT id, status, user_id, expires_at FROM qr_login_sessions "
+        "WHERE scan_hash=:scan AND exchange_hash=:exchange AND expires_at > now()"
+    ), {"scan": _qr_hash(scan_token), "exchange": _qr_hash(exchange_token)})
+    return result.mappings().first()
+
+
+@router.post("/qr/create")
+async def qr_create(request: Request, db: AsyncSession = Depends(get_db)):
+    session_id, scan_token, exchange_token = secrets.token_urlsafe(16), secrets.token_urlsafe(32), secrets.token_urlsafe(32)
+    await db.execute(text(
+        "INSERT INTO qr_login_sessions(id, scan_hash, exchange_hash, expires_at) "
+        "VALUES (:id, :scan, :exchange, now() + interval '2 minutes')"
+    ), {"id": session_id, "scan": _qr_hash(scan_token), "exchange": _qr_hash(exchange_token)})
+    await db.commit()
+    return {"session_id": session_id, "scan_token": scan_token, "exchange_token": exchange_token,
+            "url": f"{_site_origin(request)}/?qr_login={quote(scan_token)}", "expires_in": 120}
+
+
+@router.post("/qr/scan")
+async def qr_scan(
+    payload: dict,
+    request: Request,
+    user: Optional[User] = Depends(get_current_user_optional),
+    db: AsyncSession = Depends(get_db),
+):
+    """手机扫码。
+
+    - 已登录：立即把会话绑定到当前账号；
+    - 未登录：允许先标记 scanned，但 scan-info/confirm 仍要求登录。
+    QrLoginPage 会带着手机端 access_token 调用，因此正常流程会在这一步完成绑定。
+    """
+    token = str(payload.get("scan_token") or "")
+    if len(token) < 32:
+        raise HTTPException(status_code=400, detail="二维码无效")
+    row = (await db.execute(text(
+        "SELECT id, status, user_id, expires_at > now() AS alive "
+        "FROM qr_login_sessions WHERE scan_hash=:scan"
+    ), {"scan": _qr_hash(token)})).mappings().first()
+    if not row or not row["alive"]:
+        raise HTTPException(status_code=410, detail="二维码已失效")
+    if row["status"] == "confirmed":
+        raise HTTPException(status_code=409, detail="该登录请求已确认")
+    if row["status"] == "consumed":
+        raise HTTPException(status_code=410, detail="该登录请求已使用")
+    bound = row.get("user_id")
+    if bound and (not user or str(bound) != str(user.id)):
+        raise HTTPException(status_code=409, detail="该二维码已被其他账号扫描")
+    if row["status"] == "scanned":
+        return {"session_id": row["id"]}
+    await db.execute(text(
+        "UPDATE qr_login_sessions SET status='scanned', user_id=COALESCE(:uid, user_id) "
+        "WHERE id=:id AND status='pending'"
+    ), {"uid": user.id if user else None, "id": row["id"]})
+    await db.commit()
+    return {"session_id": row["id"]}
+
+
+@router.get("/qr/scan-info")
+async def qr_scan_info(
+    session_id: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    if user.status in ("banned", "deactivated", "deleting") or user.must_change_password:
+        raise HTTPException(status_code=403, detail="当前账号暂不能使用扫码登录")
+    row = (await db.execute(text(
+        "SELECT id, status, user_id, expires_at > now() AS alive "
+        "FROM qr_login_sessions WHERE id=:id"
+    ), {"id": session_id})).mappings().first()
+    if not row or not row["alive"]:
+        raise HTTPException(status_code=410, detail="二维码已失效，请重新扫描")
+    if row["status"] not in ("scanned", "confirmed"):
+        raise HTTPException(status_code=409, detail="请先扫描二维码")
+    if row["user_id"] and str(row["user_id"]) != str(user.id):
+        raise HTTPException(status_code=403, detail="该登录请求不属于当前账号")
+    return {
+        "session_id": session_id,
+        "username": user.username,
+        "nickname": user.nickname or user.username,
+    }
+
+
+@router.post("/qr/confirm")
+async def qr_confirm(payload: dict, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    session_id = str(payload.get("session_id") or "")
+    fresh = await db.get(User, user.id)
+    if not fresh or fresh.status in ("banned", "deactivated", "deleting") or fresh.must_change_password:
+        raise HTTPException(status_code=403, detail="当前账号暂不能确认登录")
+    row = (await db.execute(text(
+        "SELECT id, status, user_id, expires_at > now() AS alive "
+        "FROM qr_login_sessions WHERE id=:id"
+    ), {"id": session_id})).mappings().first()
+    if not row or not row["alive"]:
+        raise HTTPException(status_code=410, detail="登录请求已失效，请刷新二维码")
+    if row["user_id"] and str(row["user_id"]) != str(user.id):
+        raise HTTPException(status_code=403, detail="该登录请求不属于当前账号")
+    if row["status"] == "confirmed":
+        return {"status": "confirmed"}
+    if row["status"] != "scanned":
+        raise HTTPException(status_code=409, detail="请先扫描二维码")
+    result = await db.execute(text(
+        "UPDATE qr_login_sessions SET status='confirmed', user_id=:uid WHERE id=:id "
+        "AND status='scanned' AND expires_at > now() RETURNING id"
+    ), {"uid": user.id, "id": session_id})
+    if not result.first():
+        await db.rollback()
+        raise HTTPException(status_code=409, detail="登录请求已失效，请刷新二维码")
+    await db.commit()
+    return {"status": "confirmed"}
+
+
+@router.post("/qr/status")
+async def qr_status(payload: dict, db: AsyncSession = Depends(get_db)):
+    row = await _qr_session(db, str(payload.get("scan_token") or ""), str(payload.get("exchange_token") or ""))
+    if not row:
+        raise HTTPException(status_code=410, detail="二维码已过期")
+    return {"status": row["status"]}
+
+
+@router.post("/qr/exchange", response_model=TokenSchema)
+async def qr_exchange(payload: dict, request: Request, response: Response, db: AsyncSession = Depends(get_db)):
+    scan_token = str(payload.get("scan_token") or "")
+    exchange_token = str(payload.get("exchange_token") or "")
+    row = await _qr_session(db, scan_token, exchange_token)
+    if not row or row["status"] != "confirmed":
+        raise HTTPException(status_code=409, detail="尚未确认登录或二维码已过期")
+    result = await db.execute(text(
+        "UPDATE qr_login_sessions SET status='consumed' WHERE id=:id AND status='confirmed' "
+        "AND expires_at > now() RETURNING user_id"
+    ), {"id": row["id"]})
+    consumed = result.first()
+    if not consumed:
+        await db.rollback()
+        raise HTTPException(status_code=409, detail="登录请求已使用")
+    user = await db.scalar(select(User).where(User.id == consumed[0]).with_for_update())
+    if not user or user.status in ("banned", "deactivated", "deleting") or user.must_change_password:
+        await db.rollback()
+        raise HTTPException(status_code=403, detail="此账号当前无法登录")
+    tokens = await _issue_tokens(db, user, request, response=response)
+    return tokens
+
+
+@router.post("/qr/cancel")
+async def qr_cancel(payload: dict, db: AsyncSession = Depends(get_db)):
+    row = await _qr_session(db, str(payload.get("scan_token") or ""), str(payload.get("exchange_token") or ""))
+    if row:
+        await db.execute(text("UPDATE qr_login_sessions SET status='cancelled' WHERE id=:id AND status <> 'consumed'"), {"id": row["id"]})
+        await db.commit()
+    return {"status": "cancelled"}
+
+
 
 
 @router.get("/github/enabled")

@@ -871,6 +871,10 @@ MIGRATIONS: list[tuple[str, list[str]]] = [
     ("20261123_food_breakfast_type", [
         "ALTER TABLE food_cards ALTER COLUMN meal_type TYPE VARCHAR(16);",
     ]),
+    ("20261128_qr_login", [
+        "CREATE TABLE IF NOT EXISTS qr_login_sessions (id VARCHAR(64) PRIMARY KEY, scan_hash VARCHAR(64) NOT NULL UNIQUE, exchange_hash VARCHAR(64) NOT NULL, status VARCHAR(16) NOT NULL DEFAULT 'pending', user_id UUID REFERENCES users(id) ON DELETE CASCADE, created_at TIMESTAMPTZ NOT NULL DEFAULT now(), expires_at TIMESTAMPTZ NOT NULL);",
+        "CREATE INDEX IF NOT EXISTS ix_qr_login_sessions_expiry ON qr_login_sessions(expires_at);",
+    ]),
 ]
 
 
