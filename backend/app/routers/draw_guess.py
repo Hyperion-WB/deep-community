@@ -65,6 +65,10 @@ class RoundInput(BaseModel):
     round_id: UUID
 
 
+class NextInput(RoundInput):
+    role: Literal["drawer", "guesser"] = "guesser"
+
+
 class CanvasInput(RoundInput):
     canvas_version: int = Field(ge=0)
 
@@ -126,7 +130,8 @@ async def _live(db: AsyncSession, room_id: UUID, board_id: UUID, round_id: UUID)
     board = await _load(db, room_id, board_id, lock=True)
     state = dict(board.state)
     now = _now()
-    if board.id != round_id or _end_reason(board.ends_at, state, now):
+    expected_round = state.get("round_id") or str(board.id)
+    if str(round_id) != str(expected_round) or _end_reason(board.ends_at, state, now):
         raise HTTPException(409, "该轮已结束或已切换")
     return board, state, now
 
@@ -143,7 +148,9 @@ async def _view(db: AsyncSession, board: DrawGuessBoard, member: GroupMember) ->
     scores = sorted(standings.get("scores", {}).items(), key=lambda pair: (-pair[1], pair[0]))[:30]
     score_names = standings.get("names", {})
     return {
-        "board_id": board.id, "round_id": board.id, "status": "finished" if reason else "drawing",
+        "board_id": board.id, "round_id": state.get("round_id", str(board.id)),
+        "round_no": int(state.get("round_no", 1)),
+        "status": "finished" if reason else "drawing",
         "drawer_id": drawer, "drawer_name": names.get(drawer) or "群成员",
         "answer": state["answer"] if reason or board.drawer_id == member.user_id else None,
         "answer_length": len(state["answer"]), "hint": state.get("hint", ""),
@@ -267,6 +274,8 @@ async def start(
         "names": {str(member.user_id): _name(user)}, "answer": answer, "hint": hint,
         "canvas_version": 0, "strokes": [], "point_count": 0,
         "winner_id": None, "ended_reason": None, "attempts": {}, "guesses": [],
+        "round_id": str(uuid4()), "round_no": 1, "duration_seconds": payload.duration_seconds,
+        "category": payload.category,
     })
 
 
@@ -336,6 +345,47 @@ async def _score(db: AsyncSession, room_id: UUID, viewer: str, name: str):
     scores = dict(game.state.get("scores", {}))
     scores[viewer] = scores.get(viewer, 0) + 1
     game.state = {"scores": scores, "names": {**game.state.get("names", {}), viewer: name}}
+
+
+@router.post("/boards/{board_id}/next")
+async def next_round(room_id: UUID, board_id: UUID, payload: NextInput,
+                     member: GroupMember = Depends(_viewer), db: AsyncSession = Depends(get_db)):
+    """本轮结束后开启下一轮。
+
+    - role=drawer：当前用户接管画笔（换人画 / 继续画）
+    - role=guesser：保留当前画手，只换一道新题（继续猜）
+    画布、猜词、计时都会重置，玩家与积分保留。
+    """
+    board = await _load(db, room_id, board_id, lock=True)
+    state = dict(board.state)
+    now = _now()
+    if not _end_reason(board.ends_at, state, now):
+        raise HTTPException(409, "本轮还没有结束")
+    user = await _play_user(db, member)
+    viewer = str(member.user_id)
+
+    if payload.role == "drawer":
+        board.drawer_id = member.user_id
+    else:
+        current_drawer = str(board.drawer_id)
+        if current_drawer not in state.get("names", {}):
+            raise HTTPException(409, "当前画手已离开，请选择「继续画」接手")
+
+    category = state.get("category")
+    words = _THEMES.get(category, _WORDS)
+    pool = [w for w in words if w != state.get("answer")] or list(words)
+    answer = choice(pool)
+    duration = int(state.get("duration_seconds", 120))
+    board.ends_at = now + duration * 1000
+    state.update(
+        names={**state.get("names", {}), viewer: _name(user)},
+        answer=answer, hint="", canvas_version=int(state.get("canvas_version", 0)) + 1,
+        strokes=[], point_count=0, winner_id=None, ended_reason=None,
+        attempts={}, guesses=[],
+        round_id=str(uuid4()), round_no=int(state.get("round_no", 1)) + 1,
+        duration_seconds=duration, category=category,
+    )
+    return await _save(db, board, member, state)
 
 
 @router.post("/boards/{board_id}/guess")

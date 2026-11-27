@@ -37,6 +37,7 @@ interface DrawGuessState {
   joined: boolean;
   can_end: boolean;
   ended_reason: 'guessed' | 'manual' | 'timeout' | null;
+  round_no?: number;
   guesses: { user_id: string; name: string | null; text: string; ts: number; correct: boolean }[];
   scores: { user_id: string; name: string | null; score: number }[];
 }
@@ -640,6 +641,31 @@ const DrawGuessBoard: React.FC<BoardProps> = ({ boardId, endpoint, initial, onBa
     }
   };
 
+  const handleNext = async (role: 'drawer' | 'guesser') => {
+    const current = snapshotRef.current;
+    if (!current?.round_id || current.status !== 'finished' || busy) return;
+    setBusy(true);
+    setError('');
+    setMissedGuess(false);
+    try {
+      const sequence = ++requestSequenceRef.current;
+      const { data } = await apiClient.post<DrawGuessState>(`${endpoint}/${current.board_id}/next`, {
+        round_id: current.round_id,
+        role,
+      });
+      applySnapshot(data, sequence);
+      setReward(null);
+    } catch (nextError) {
+      if (!mountedRef.current) return;
+      setError(errorMessage(nextError));
+      if ((nextError as { response?: { status?: number } })?.response?.status === 409) {
+        try { await loadState(); } catch { /* keep the last known state */ }
+      }
+    } finally {
+      if (mountedRef.current) setBusy(false);
+    }
+  };
+
   const handleGuess = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const current = snapshotRef.current;
@@ -692,6 +718,7 @@ const DrawGuessBoard: React.FC<BoardProps> = ({ boardId, endpoint, initial, onBa
               {game?.status === 'drawing'
                 ? isDrawer ? '你来画画，其他群友来猜' : game.joined ? '看画面猜一猜' : '正在旁观，加入后即可猜词'
                 : game?.status === 'finished' ? '本轮已结束' : '正在加载画板'}
+              {game?.round_no ? ` · 第 ${game.round_no} 轮` : ''}
             </p>
           </div>
         </div>
@@ -738,6 +765,19 @@ const DrawGuessBoard: React.FC<BoardProps> = ({ boardId, endpoint, initial, onBa
                 {reward.daily_exp_left === 0 && ' · 今日群经验额度已用完'}
                 {reward.level_up && ` · 群等级升至 ${reward.group_level} 级`}
               </p>}
+              <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                <button type="button" onClick={() => void handleNext('drawer')} disabled={busy}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-capsule bg-wb-brand px-3 text-2xs font-semibold text-white disabled:opacity-50">
+                  {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                  {isDrawer ? '继续画 · 换一题' : '继续画 · 我来画'}
+                </button>
+                {!isDrawer && game.joined && (
+                  <button type="button" onClick={() => void handleNext('guesser')} disabled={busy}
+                    className="inline-flex h-8 items-center gap-1.5 rounded-capsule border border-wb-border-subtle px-3 text-2xs font-semibold text-wb-text-secondary hover:bg-wb-bg-subtle disabled:opacity-50">
+                    继续猜 · 等新题
+                  </button>
+                )}
+              </div>
             </div>
           )}
           {game?.status === 'drawing' && (
