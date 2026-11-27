@@ -15,6 +15,7 @@ import {
   LayoutGrid,
   Calendar,
   Search,
+  ScanLine,
 } from 'lucide-react';
 import { ThemeCapsule } from './ThemeCapsule';
 import { UserAvatar } from './UserAvatar';
@@ -23,6 +24,7 @@ import { useScrollVisibility } from '../hooks/useScrollVisibility';
 import type { UserProfile } from '../types';
 import { usePortalMode } from '../utils/portalMode';
 import { apiClient } from '../api/client';
+import { QrScannerModal } from './QrScannerModal';
 
 interface Props {
   user: UserProfile | null;
@@ -143,6 +145,7 @@ export const Navbar: React.FC<Props> = ({
   const hasActiveMobile = activeMobileIndex !== -1;
 
   const navHidden = useScrollVisibility();
+  const [scanOpen, setScanOpen] = useState(false);
   // 滚动后加深投影：内容顶到导航下方时，靠一道柔和暗影把两者分开
   const [scrolled, setScrolled] = useState(false);
   useEffect(() => {
@@ -380,6 +383,14 @@ export const Navbar: React.FC<Props> = ({
 
             <ThemeCapsule />
 
+            {/* 手机端扫一扫 */}
+            {user && (
+              <button type="button" onClick={() => setScanOpen(true)} title="扫一扫" aria-label="扫一扫"
+                className="sm:hidden flex items-center justify-center w-8 h-8 rounded-capsule bg-wb-bg-subtle border border-wb-border-subtle text-wb-text-secondary hover:text-wb-text-primary transition-colors shrink-0">
+                <ScanLine className="w-3.5 h-3.5" />
+              </button>
+            )}
+
             {/* 消息通知铃铛 */}
             {user && (
               <button
@@ -521,6 +532,7 @@ export const Navbar: React.FC<Props> = ({
         })}
       </nav>
       )}
+      {scanOpen && <QrScannerModal onClose={() => setScanOpen(false)} />}
     </>
   );
 };
