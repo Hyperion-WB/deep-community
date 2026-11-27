@@ -169,7 +169,8 @@ async def _view(db: AsyncSession, board: DrawGuessBoard, member: GroupMember) ->
         "hint_revealed": revealed,
         "hint_requests": [names.get(str(uid)) or "群友" for uid in state.get("hint_requests", [])],
         "can_request_hint": bool(not reason and not is_drawer and viewer in names
-                                 and revealed < len(answer) - 1 and viewer not in state.get("hint_requests", [])),
+                                 and viewer not in guessed and revealed < len(answer) - 1
+                                 and viewer not in state.get("hint_requests", [])),
         "can_reveal_hint": bool(not reason and _can_manage(board, member) and revealed < len(answer) - 1),
         "guessed_ids": guessed,
         "guessed_names": [names.get(uid) or "群友" for uid in guessed],
@@ -373,6 +374,9 @@ async def request_hint(room_id: UUID, board_id: UUID, payload: RoundInput,
         raise HTTPException(403, "画手不需要请求提示")
     if viewer not in state.get("names", {}):
         raise HTTPException(403, "请先加入该画板")
+    if viewer in [str(uid) for uid in state.get("guessed", [])]:
+        raise HTTPException(400, "你已经猜中，不需要提示了")
+    await _play_user(db, member)
     if int(state.get("hint_revealed", 0)) >= len(state["answer"]) - 1:
         raise HTTPException(400, "题目已经全部揭示")
     requests = list(state.get("hint_requests", []))
@@ -432,6 +436,15 @@ async def next_round(room_id: UUID, board_id: UUID, payload: NextInput,
     viewer = str(member.user_id)
 
     if payload.role == "drawer":
+        # 一个用户在同一群同时只能主持一个进行中的画板，避免“双开”
+        other = await db.scalar(select(DrawGuessBoard.id).where(
+            DrawGuessBoard.room_id == room_id,
+            DrawGuessBoard.drawer_id == member.user_id,
+            DrawGuessBoard.id != board.id,
+            DrawGuessBoard.ends_at > now,
+        ).limit(1))
+        if other:
+            raise HTTPException(409, "你已有进行中的画板，请先结束该局")
         board.drawer_id = member.user_id
     else:
         current_drawer = str(board.drawer_id)
@@ -444,7 +457,7 @@ async def next_round(room_id: UUID, board_id: UUID, payload: NextInput,
     answer = normalize("NFKC", payload.answer or "").strip()[:8]
     if answer:
         blocked, _, clean_answer = sensitive_filter.scan(answer)
-        if blocked:
+        if blocked or "".join(clean_answer.casefold().split()) != "".join(answer.casefold().split()):
             raise HTTPException(400, "题目未通过审核")
         answer = clean_answer
     else:

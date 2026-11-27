@@ -91,6 +91,12 @@ const MAX_ANSWER_LENGTH = 8;
 const MAX_HINT_LENGTH = 30;
 const PALETTE = ['#111827', '#EF4444', '#F97316', '#EAB308', '#22C55E', '#06B6D4', '#3B82F6', '#8B5CF6', '#EC4899', '#FFFFFF'];
 
+const strokeSignature = (stroke: Stroke) => [
+  stroke.color.toLowerCase(),
+  Number(stroke.width).toFixed(2),
+  stroke.points.map((point) => `${Number(point.x).toFixed(5)},${Number(point.y).toFixed(5)}`).join(';'),
+].join('|');
+
 const errorMessage = (error: unknown): string => {
   const response = (error as { response?: { status?: number; data?: { detail?: unknown; message?: unknown } } })?.response;
   if (response?.status === 403) return '你需要是该群成员才能参与游戏。';
@@ -426,11 +432,13 @@ const DrawGuessBoard: React.FC<BoardProps> = ({ boardId, endpoint, initial, onBa
     ? Math.max(0, Math.ceil((game.ends_at - (now - serverOffsetRef.current)) / 1000))
     : 0;
 
-  const renderedStrokes = useMemo(() => [
-    ...(game?.strokes ?? []),
-    ...pendingStrokes,
-    ...(activePreview ? [activePreview] : []),
-  ], [activePreview, game?.strokes, pendingStrokes]);
+  const renderedStrokes = useMemo(() => {
+    const serverStrokes = game?.strokes ?? [];
+    const serverKeys = new Set(serverStrokes.map(strokeSignature));
+    // 已经落到服务端的笔画不要再叠加本地草稿，否则同一笔会画两遍、看起来发粗/抖动。
+    const optimistic = activePreview ? [] : pendingStrokes.filter((stroke) => !serverKeys.has(strokeSignature(stroke)));
+    return [...serverStrokes, ...optimistic, ...(activePreview ? [activePreview] : [])];
+  }, [activePreview, game?.strokes, pendingStrokes]);
 
   renderedStrokesRef.current = renderedStrokes;
 
