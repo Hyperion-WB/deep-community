@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, ArrowRight, Brush, Clock, Eraser, History, Loader2, Play, Send, Trophy, Users } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Brush, Clock, Eraser, History, Lightbulb, Loader2, Play, Send, Trophy, Undo2, Users } from 'lucide-react';
 import { apiClient } from '../api/client';
 
 interface Point {
@@ -36,8 +36,17 @@ interface DrawGuessState {
   winner_name: string | null;
   joined: boolean;
   can_end: boolean;
-  ended_reason: 'guessed' | 'manual' | 'timeout' | null;
+  ended_reason: 'guessed' | 'manual' | 'timeout' | 'all_guessed' | null;
   round_no?: number;
+  duration_seconds?: number;
+  is_drawer?: boolean;
+  my_guessed?: boolean;
+  guessed_names?: string[];
+  answer_mask?: string | null;
+  hint_revealed?: number;
+  hint_requests?: string[];
+  can_request_hint?: boolean;
+  can_reveal_hint?: boolean;
   guesses: { user_id: string; name: string | null; text: string; ts: number; correct: boolean }[];
   scores: { user_id: string; name: string | null; score: number }[];
 }
@@ -312,11 +321,17 @@ const DrawGuessBoard: React.FC<BoardProps> = ({ boardId, endpoint, initial, onBa
   const [error, setError] = useState('');
   const [missedGuess, setMissedGuess] = useState(false);
   const [reward, setReward] = useState<GroupExpReward | null>(null);
+  const [nextAnswer, setNextAnswer] = useState('');
+  const [nextDuration, setNextDuration] = useState(120);
+  const [nextHint, setNextHint] = useState('');
   const [pendingStrokes, setPendingStrokes] = useState<Stroke[]>([]);
   const [activePreview, setActivePreview] = useState<Stroke | null>(null);
   const [pointerDown, setPointerDown] = useState(false);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const renderedStrokesRef = useRef<Stroke[]>([]);
+  const redrawRef = useRef<() => void>(() => {});
+  const redrawFrameRef = useRef(0);
   const snapshotRef = useRef<DrawGuessState | null>(initial ?? null);
   const activeStrokeRef = useRef<ActiveStroke | null>(null);
   const activePointerRef = useRef<number | null>(null);
@@ -341,6 +356,7 @@ const DrawGuessBoard: React.FC<BoardProps> = ({ boardId, endpoint, initial, onBa
       (previous.status === 'drawing' && next.status === 'finished')
     ));
     if (boardChanged) {
+      if (previous?.round_id !== next.round_id) setNextDuration(next.duration_seconds || 120);
       activeStrokeRef.current = null;
       activePointerRef.current = null;
       pendingStrokesRef.current = [];
@@ -403,8 +419,9 @@ const DrawGuessBoard: React.FC<BoardProps> = ({ boardId, endpoint, initial, onBa
     return () => window.clearInterval(timer);
   }, []);
 
-  const isDrawer = game?.status === 'drawing' && Boolean(game.answer);
-  const canGuess = game?.status === 'drawing' && game.joined && !isDrawer;
+  const isDrawer = Boolean(game?.is_drawer ?? (game?.status === 'drawing' && game.answer));
+  const canDraw = game?.status === 'drawing' && isDrawer;
+  const canGuess = game?.status === 'drawing' && game.joined && !isDrawer && !game.my_guessed;
   const remainingSeconds = game?.ends_at
     ? Math.max(0, Math.ceil((game.ends_at - (now - serverOffsetRef.current)) / 1000))
     : 0;
@@ -414,6 +431,8 @@ const DrawGuessBoard: React.FC<BoardProps> = ({ boardId, endpoint, initial, onBa
     ...pendingStrokes,
     ...(activePreview ? [activePreview] : []),
   ], [activePreview, game?.strokes, pendingStrokes]);
+
+  renderedStrokesRef.current = renderedStrokes;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -425,7 +444,7 @@ const DrawGuessBoard: React.FC<BoardProps> = ({ boardId, endpoint, initial, onBa
       const dpr = Math.max(1, window.devicePixelRatio || 1);
       const pixelWidth = Math.max(1, Math.round(rect.width * dpr));
       const pixelHeight = Math.max(1, Math.round(rect.height * dpr));
-      if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
+      if (Math.abs(canvas.width - pixelWidth) > 1 || Math.abs(canvas.height - pixelHeight) > 1) {
         canvas.width = pixelWidth;
         canvas.height = pixelHeight;
       }
@@ -435,7 +454,7 @@ const DrawGuessBoard: React.FC<BoardProps> = ({ boardId, endpoint, initial, onBa
       context.fillStyle = '#FFFFFF';
       context.fillRect(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT);
 
-      for (const stroke of renderedStrokes) {
+      for (const stroke of renderedStrokesRef.current) {
         if (!stroke.points.length) continue;
         context.beginPath();
         context.strokeStyle = stroke.color;
@@ -459,14 +478,31 @@ const DrawGuessBoard: React.FC<BoardProps> = ({ boardId, endpoint, initial, onBa
       }
     };
 
-    const observer = new ResizeObserver(redraw);
+    redrawRef.current = redraw;
+    const schedule = () => {
+      if (redrawFrameRef.current) return;
+      redrawFrameRef.current = window.requestAnimationFrame(() => {
+        redrawFrameRef.current = 0;
+        redraw();
+      });
+    };
+    const observer = new ResizeObserver(schedule);
     observer.observe(canvas);
-    window.addEventListener('resize', redraw);
-    redraw();
+    window.addEventListener('resize', schedule);
+    schedule();
     return () => {
       observer.disconnect();
-      window.removeEventListener('resize', redraw);
+      window.removeEventListener('resize', schedule);
+      if (redrawFrameRef.current) window.cancelAnimationFrame(redrawFrameRef.current);
     };
+  }, []);
+
+  useEffect(() => {
+    if (redrawFrameRef.current) return;
+    redrawFrameRef.current = window.requestAnimationFrame(() => {
+      redrawFrameRef.current = 0;
+      redrawRef.current?.();
+    });
   }, [renderedStrokes]);
 
   const queueStroke = useCallback((stroke: ActiveStroke, points: Point[]) => {
@@ -524,7 +560,7 @@ const DrawGuessBoard: React.FC<BoardProps> = ({ boardId, endpoint, initial, onBa
   };
 
   const onPointerDown = (event: React.PointerEvent<HTMLCanvasElement>) => {
-    if (!isDrawer || busy || clearRequestedRef.current || event.button !== 0) return;
+    if (!canDraw || busy || clearRequestedRef.current || event.button !== 0) return;
     const point = pointFromEvent(event);
     const current = snapshotRef.current;
     if (!point || !current?.round_id) return;
@@ -609,9 +645,66 @@ const DrawGuessBoard: React.FC<BoardProps> = ({ boardId, endpoint, initial, onBa
     }
   };
 
+  const handleUndo = async () => {
+    const current = snapshotRef.current;
+    if (!current?.round_id || !canDraw || busy) return;
+    setBusy(true);
+    setError('');
+    try {
+      await strokeQueueRef.current;
+      const sequence = ++requestSequenceRef.current;
+      const { data } = await apiClient.post<DrawGuessState>(`${endpoint}/undo`, {
+        round_id: current.round_id,
+        canvas_version: current.canvas_version,
+      });
+      applySnapshot(data, sequence);
+      pendingStrokesRef.current = [];
+      setPendingStrokes([]);
+    } catch (undoError) {
+      setError(errorMessage(undoError));
+      if ((undoError as { response?: { status?: number } })?.response?.status === 409) {
+        try { await loadState(); } catch { /* leave the last known state */ }
+      }
+    } finally {
+      if (mountedRef.current) setBusy(false);
+    }
+  };
+
+  const handleHintRequest = async () => {
+    const current = snapshotRef.current;
+    if (!current?.round_id || !current.can_request_hint || busy) return;
+    setBusy(true);
+    setError('');
+    try {
+      const sequence = ++requestSequenceRef.current;
+      const { data } = await apiClient.post<DrawGuessState>(`${endpoint}/hint-request`, { round_id: current.round_id });
+      applySnapshot(data, sequence);
+    } catch (hintError) {
+      setError(errorMessage(hintError));
+    } finally {
+      if (mountedRef.current) setBusy(false);
+    }
+  };
+
+  const handleHintReveal = async () => {
+    const current = snapshotRef.current;
+    if (!current?.round_id || !current.can_reveal_hint || busy) return;
+    setBusy(true);
+    setError('');
+    try {
+      const sequence = ++requestSequenceRef.current;
+      const { data } = await apiClient.post<DrawGuessState>(`${endpoint}/hint-reveal`, { round_id: current.round_id });
+      applySnapshot(data, sequence);
+    } catch (hintError) {
+      setError(errorMessage(hintError));
+    } finally {
+      if (mountedRef.current) setBusy(false);
+    }
+  };
+
   const handleClear = async () => {
     const current = snapshotRef.current;
-    if (!current?.round_id || !isDrawer || busy) return;
+    if (!current?.round_id || !canDraw || busy) return;
     clearRequestedRef.current = true;
     activeStrokeRef.current = null;
     activePointerRef.current = null;
@@ -649,9 +742,14 @@ const DrawGuessBoard: React.FC<BoardProps> = ({ boardId, endpoint, initial, onBa
     setMissedGuess(false);
     try {
       const sequence = ++requestSequenceRef.current;
-      const { data } = await apiClient.post<DrawGuessState>(`${endpoint}/${current.board_id}/next`, {
+      const { data } = await apiClient.post<DrawGuessState>(`${endpoint}/next`, {
         round_id: current.round_id,
         role,
+        ...(role === 'drawer' ? {
+          answer: nextAnswer.trim() || undefined,
+          hint: nextHint.trim() || undefined,
+          duration_seconds: nextDuration,
+        } : {}),
       });
       applySnapshot(data, sequence);
       setReward(null);
@@ -707,13 +805,13 @@ const DrawGuessBoard: React.FC<BoardProps> = ({ boardId, endpoint, initial, onBa
 
   return (
     <section className="w-full space-y-4 text-wb-text-primary">
-      <header className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-wb-border-subtle bg-wb-bg-surface px-4 py-3">
+      <header className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-wb-border-subtle bg-gradient-to-br from-wb-bg-surface via-wb-bg-surface to-wb-brand/[0.07] px-4 py-3.5 shadow-[0_10px_30px_rgba(0,0,0,0.05)]">
         <div className="flex min-w-0 items-center gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-wb-brand/10 text-wb-brand">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-wb-brand to-wb-brand/70 text-white shadow-lg shadow-wb-brand/20">
             <Brush className="h-5 w-5" />
           </span>
           <div className="min-w-0">
-            <h4 className="truncate text-sm font-bold">{game ? `${game.drawer_name || '群友'}的画板` : '你画我猜'}</h4>
+            <h4 className="truncate text-base font-bold tracking-tight">{game ? `${game.drawer_name || '群友'}的画板` : '你画我猜'}</h4>
             <p className="text-2xs text-wb-text-muted">
               {game?.status === 'drawing'
                 ? isDrawer ? '你来画画，其他群友来猜' : game.joined ? '看画面猜一猜' : '正在旁观，加入后即可猜词'
@@ -723,7 +821,7 @@ const DrawGuessBoard: React.FC<BoardProps> = ({ boardId, endpoint, initial, onBa
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <span className={`rounded-full px-2.5 py-1 text-2xs font-semibold ${game?.status === 'drawing' ? 'bg-wb-brand/10 text-wb-brand' : 'bg-wb-bg-subtle text-wb-text-muted'}`}>
+          <span className={`rounded-full px-3 py-1 text-2xs font-semibold ${game?.status === 'drawing' ? 'bg-wb-brand/10 text-wb-brand ring-1 ring-wb-brand/15' : 'bg-wb-bg-subtle text-wb-text-muted'}`}>
             {game?.status === 'drawing' ? `进行中 · ${remainingSeconds}s` : game?.status === 'finished' ? '已结束' : error ? '加载失败' : '加载中'}
           </span>
           {game?.status === 'drawing' && !game.joined && !isDrawer && (
@@ -750,14 +848,16 @@ const DrawGuessBoard: React.FC<BoardProps> = ({ boardId, endpoint, initial, onBa
       <div className="mx-auto grid gap-3 lg:max-w-[max(760px,calc(160dvh_-_150px))] lg:grid-cols-[minmax(0,1fr)_208px] xl:grid-cols-[minmax(0,1fr)_240px]">
         <div className="min-w-0 space-y-2">
           {game?.status === 'finished' && (
-            <div role="status" className="rounded-lg border border-wb-border-subtle bg-wb-bg-surface px-3 py-2.5 text-xs">
+            <div role="status" className="rounded-2xl border border-wb-brand/15 bg-gradient-to-br from-wb-brand/[0.10] via-wb-bg-surface to-wb-bg-surface px-4 py-3.5 text-xs shadow-[0_10px_30px_rgba(0,0,0,0.05)]">
               <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                <span className="inline-flex items-center gap-1.5 font-semibold"><Trophy className="h-4 w-4 text-wb-brand" aria-hidden="true" />本轮结果</span>
-                {game.answer && <span className="min-w-0 break-words text-wb-text-secondary [overflow-wrap:anywhere]">答案：<strong className="text-wb-text-primary">{game.answer}</strong></span>}
+                <span className="inline-flex items-center gap-2 text-sm font-bold"><span className="grid h-7 w-7 place-items-center rounded-full bg-wb-brand/15 text-wb-brand"><Trophy className="h-4 w-4" aria-hidden="true" /></span>本轮结果</span>
+                {game.answer && <span className="min-w-0 break-words text-wb-text-secondary [overflow-wrap:anywhere]">答案：<strong className="text-base text-wb-text-primary">{game.answer}</strong></span>}
                 <span className="min-w-0 break-words text-wb-text-secondary [overflow-wrap:anywhere]">
-                  {game.ended_reason === 'guessed' ? reward ? '你猜中了！' : `${game.winner_name || '有群友'}猜中了！`
-                    : game.ended_reason === 'manual' ? '本轮已手动结束。'
-                      : game.ended_reason === 'timeout' ? '时间到，本轮结束。' : '本轮已结束。'}
+                  {game.ended_reason === 'all_guessed'
+                    ? `全部猜中！${game.guessed_names?.length ? `（${game.guessed_names.join('、')}）` : ''}`
+                    : game.ended_reason === 'guessed' ? reward ? '你猜中了！' : `${game.winner_name || '有群友'}猜中了！`
+                      : game.ended_reason === 'manual' ? '本轮已手动结束。'
+                        : game.ended_reason === 'timeout' ? '时间到，本轮结束。' : '本轮已结束。'}
                 </span>
               </div>
               {reward && <p className="mt-1 text-wb-text-secondary">
@@ -765,15 +865,30 @@ const DrawGuessBoard: React.FC<BoardProps> = ({ boardId, endpoint, initial, onBa
                 {reward.daily_exp_left === 0 && ' · 今日群经验额度已用完'}
                 {reward.level_up && ` · 群等级升至 ${reward.group_level} 级`}
               </p>}
+              {isDrawer && (
+                <div className="mt-2.5 grid gap-1.5 rounded-xl border border-wb-border-subtle bg-white/60 p-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_7.5rem]">
+                  <input value={nextAnswer} onChange={(event) => setNextAnswer(event.target.value.slice(0, 8))}
+                    maxLength={8} placeholder="下一题（留空随机）" aria-label="下一题题目"
+                    className="h-8 min-w-0 rounded-lg border border-wb-border-subtle bg-white px-2.5 text-xs focus:border-wb-brand focus:outline-none" />
+                  <input value={nextHint} onChange={(event) => setNextHint(event.target.value.slice(0, 30))}
+                    maxLength={30} placeholder="提示（选填）" aria-label="下一题提示"
+                    className="h-8 min-w-0 rounded-lg border border-wb-border-subtle bg-white px-2.5 text-xs focus:border-wb-brand focus:outline-none" />
+                  <select value={nextDuration} onChange={(event) => setNextDuration(Number(event.target.value))}
+                    aria-label="下一轮时长"
+                    className="h-8 rounded-lg border border-wb-border-subtle bg-white px-2 text-xs focus:border-wb-brand focus:outline-none">
+                    {ROUND_DURATIONS.map((value) => <option key={value} value={value}>{value} 秒</option>)}
+                  </select>
+                </div>
+              )}
               <div className="mt-2.5 flex flex-wrap items-center gap-2">
                 <button type="button" onClick={() => void handleNext('drawer')} disabled={busy}
-                  className="inline-flex h-8 items-center gap-1.5 rounded-capsule bg-wb-brand px-3 text-2xs font-semibold text-white disabled:opacity-50">
+                  className="inline-flex h-9 items-center gap-1.5 rounded-capsule bg-wb-text-primary px-4 text-2xs font-semibold text-wb-bg-page shadow-sm hover:opacity-90 disabled:opacity-50">
                   {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                   {isDrawer ? '继续画 · 换一题' : '继续画 · 我来画'}
                 </button>
                 {!isDrawer && game.joined && (
                   <button type="button" onClick={() => void handleNext('guesser')} disabled={busy}
-                    className="inline-flex h-8 items-center gap-1.5 rounded-capsule border border-wb-border-subtle px-3 text-2xs font-semibold text-wb-text-secondary hover:bg-wb-bg-subtle disabled:opacity-50">
+                    className="inline-flex h-9 items-center gap-1.5 rounded-capsule border border-wb-border-subtle px-4 text-2xs font-semibold text-wb-text-secondary hover:bg-wb-bg-subtle disabled:opacity-50">
                     继续猜 · 等新题
                   </button>
                 )}
@@ -781,20 +896,40 @@ const DrawGuessBoard: React.FC<BoardProps> = ({ boardId, endpoint, initial, onBa
             </div>
           )}
           {game?.status === 'drawing' && (
-            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 rounded-lg border border-wb-border-subtle bg-wb-bg-surface px-3 py-2 text-xs">
-              {isDrawer && game.answer ? (
-                <span>请画出：<strong className="break-all text-sm text-wb-brand">{game.answer}</strong></span>
-              ) : (
-                <span className="font-semibold text-wb-brand">{game.answer_length ? `猜一猜 · ${game.answer_length} 字` : '猜一猜'}</span>
+            <div className="rounded-xl border border-wb-border-subtle bg-gradient-to-r from-wb-brand/[0.07] via-wb-bg-surface to-wb-bg-surface px-3 py-2.5 text-xs">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                {isDrawer && game.answer ? (
+                  <span>请画出：<strong className="break-all text-sm text-wb-brand">{game.answer}</strong></span>
+                ) : (
+                  <span className="font-semibold tracking-wide text-wb-brand">
+                    {game.answer_mask || (game.answer_length ? '＿'.repeat(game.answer_length) : '猜一猜')}
+                    {game.answer_length ? <span className="ml-2 text-2xs font-normal text-wb-text-muted">· {game.answer_length} 字</span> : null}
+                  </span>
+                )}
+                {game.hint && <span className="min-w-0 break-words text-wb-text-secondary">提示：{game.hint}</span>}
+                {!isDrawer && game.can_request_hint && (
+                  <button type="button" onClick={() => void handleHintRequest()} disabled={busy}
+                    className="ml-auto inline-flex h-7 items-center gap-1 rounded-capsule border border-wb-border-subtle bg-white/70 px-2.5 text-2xs font-semibold text-wb-text-secondary hover:bg-wb-bg-subtle disabled:opacity-50">
+                    <Lightbulb className="h-3 w-3" />请求提示
+                  </button>
+                )}
+                {isDrawer && game.can_reveal_hint && (
+                  <button type="button" onClick={() => void handleHintReveal()} disabled={busy}
+                    className="ml-auto inline-flex h-7 items-center gap-1 rounded-capsule border border-wb-border-subtle bg-white/70 px-2.5 text-2xs font-semibold text-wb-text-secondary hover:bg-wb-bg-subtle disabled:opacity-50">
+                    <Lightbulb className="h-3 w-3" />揭示一个字
+                  </button>
+                )}
+              </div>
+              {isDrawer && Boolean(game.hint_requests?.length) && (
+                <p className="mt-1.5 text-2xs text-wb-text-muted">{game.hint_requests!.join('、')} 请求提示</p>
               )}
-              {game.hint && <span className="min-w-0 break-words text-wb-text-secondary">提示：{game.hint}</span>}
             </div>
           )}
-          <div className="relative aspect-[16/10] w-full overflow-hidden rounded-xl border border-wb-border-subtle bg-white shadow-sm">
+          <div className="relative aspect-[16/10] w-full overflow-hidden rounded-2xl border border-white/80 bg-white shadow-[0_18px_45px_rgba(0,0,0,0.12)] ring-1 ring-black/[0.04]">
             <canvas
               ref={canvasRef}
               aria-label="你画我猜共享画板"
-              className={`absolute inset-0 h-full w-full ${isDrawer ? 'cursor-crosshair touch-none' : 'cursor-default'}`}
+              className={`absolute inset-0 h-full w-full ${canDraw ? 'cursor-crosshair touch-none' : 'cursor-default'}`}
               onPointerDown={onPointerDown}
               onPointerMove={onPointerMove}
               onPointerUp={finishPointer}
@@ -807,7 +942,7 @@ const DrawGuessBoard: React.FC<BoardProps> = ({ boardId, endpoint, initial, onBa
             )}
           </div>
 
-          {isDrawer ? (
+          {canDraw ? (
             <div className="rounded-lg border border-wb-border-subtle bg-wb-bg-surface">
               <div role="group" aria-label="选择画笔颜色" className="flex flex-wrap items-center gap-1 px-2 py-1.5">
                 {PALETTE.map((swatch) => (
@@ -826,13 +961,22 @@ const DrawGuessBoard: React.FC<BoardProps> = ({ boardId, endpoint, initial, onBa
                   <input type="range" min="1" max="32" value={brushWidth} onChange={(event) => setBrushWidth(Number(event.target.value))}
                     aria-label="画笔粗细" className="h-9 min-w-0 flex-1 accent-wb-brand sm:max-w-44" />
                 </label>
+                <button type="button" onClick={() => void handleUndo()} disabled={busy || pointerDown || !(game?.strokes?.length)}
+                  className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-wb-border-subtle px-2 text-xs font-medium text-wb-text-secondary hover:bg-wb-bg-subtle disabled:opacity-40 sm:px-3">
+                  <Undo2 className="h-3.5 w-3.5" />撤销
+                </button>
                 <button type="button" onClick={() => void handleClear()} disabled={busy || pointerDown}
                   className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-wb-border-subtle px-2 text-xs font-medium text-wb-text-secondary hover:bg-wb-bg-subtle disabled:opacity-50 sm:px-3">
                   {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Eraser className="h-3.5 w-3.5" />}
-                  清空画板
+                  清空
                 </button>
               </div>
               {sendingStrokes && <p className="px-3 pb-2 text-2xs text-wb-text-muted">正在同步笔画…</p>}
+            </div>
+          ) : game?.status === 'drawing' && game.my_guessed ? (
+            <div className="flex items-center gap-2 rounded-xl border border-wb-brand/20 bg-wb-brand/[0.06] px-3 py-2.5 text-xs text-wb-text-secondary">
+              <Trophy className="h-4 w-4 text-wb-brand" />
+              你已猜中，等其他群友继续；画手也可以直接开下一轮。
             </div>
           ) : canGuess ? (
             <form onSubmit={(event) => void handleGuess(event)} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 rounded-lg border border-wb-border-subtle bg-wb-bg-surface p-2">
@@ -850,21 +994,20 @@ const DrawGuessBoard: React.FC<BoardProps> = ({ boardId, endpoint, initial, onBa
         </div>
 
         <aside className="min-w-0 space-y-3">
-          <div className="rounded-xl border border-wb-border-subtle bg-wb-bg-surface p-3">
-            <h5 className="mb-2 text-xs font-semibold">群友猜词</h5>
+          <div className="rounded-2xl border border-wb-border-subtle bg-wb-bg-surface p-3.5 shadow-[0_8px_24px_rgba(0,0,0,0.04)]">
+            <h5 className="mb-2.5 text-xs font-semibold tracking-wide">群友猜词</h5>
             {game?.guesses?.length ? (
               <ol aria-label="猜词记录（最新在前）" className="max-h-32 space-y-1 overflow-y-auto text-xs lg:max-h-48">
                 {[...game.guesses].reverse().map((entry, index) => (
                   <li key={`${entry.user_id}-${entry.ts}-${index}`} className="break-words text-wb-text-secondary">
                     <strong>{entry.name || '群友'}：</strong>
-                    {entry.correct && game.status === 'drawing' && !isDrawer ? '猜中了' : entry.text}
-                    {entry.correct && game.status === 'finished' && <span className="ml-2 font-semibold text-wb-brand">猜中</span>}
+                    {entry.correct ? <span className="font-semibold text-wb-brand">猜中了</span> : entry.text}
                   </li>
                 ))}
               </ol>
             ) : <p className="text-2xs text-wb-text-muted">还没有人猜词。</p>}
           </div>
-          <div className="rounded-xl border border-wb-border-subtle bg-wb-bg-surface p-3">
+          <div className="rounded-2xl border border-wb-border-subtle bg-wb-bg-surface p-3.5 shadow-[0_8px_24px_rgba(0,0,0,0.04)]">
             <div className="mb-3 flex items-center justify-between">
               <h5 className="text-xs font-semibold">群内积分</h5>
               <Trophy className="h-4 w-4 text-wb-text-muted" />

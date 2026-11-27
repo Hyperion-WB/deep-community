@@ -67,6 +67,10 @@ class RoundInput(BaseModel):
 
 class NextInput(RoundInput):
     role: Literal["drawer", "guesser"] = "guesser"
+    duration_seconds: Literal[30, 60, 90, 120, 180, 300] | None = None
+    category: Literal["everyday", "nature", "adventure"] | None = None
+    answer: str | None = Field(default=None, max_length=8)
+    hint: str | None = Field(default=None, max_length=30)
 
 
 class CanvasInput(RoundInput):
@@ -144,17 +148,34 @@ async def _view(db: AsyncSession, board: DrawGuessBoard, member: GroupMember) ->
     drawer = str(board.drawer_id)
     winner = state.get("winner_id")
     viewer = str(member.user_id)
+    is_drawer = board.drawer_id == member.user_id
+    answer = state["answer"]
+    guessed = [str(uid) for uid in state.get("guessed", [])]
+    revealed = int(state.get("hint_revealed", 0))
     standings = await db.scalar(select(DrawGuessGame.state).where(DrawGuessGame.room_id == board.room_id)) or {}
     scores = sorted(standings.get("scores", {}).items(), key=lambda pair: (-pair[1], pair[0]))[:30]
     score_names = standings.get("names", {})
+    can_see_answer = bool(reason) or is_drawer or viewer in guessed
+    mask = answer[:revealed] + "＿" * max(0, len(answer) - revealed)
     return {
         "board_id": board.id, "round_id": state.get("round_id", str(board.id)),
         "round_no": int(state.get("round_no", 1)),
         "status": "finished" if reason else "drawing",
         "drawer_id": drawer, "drawer_name": names.get(drawer) or "群成员",
-        "answer": state["answer"] if reason or board.drawer_id == member.user_id else None,
-        "answer_length": len(state["answer"]), "hint": state.get("hint", ""),
+        "is_drawer": is_drawer,
+        "answer": answer if can_see_answer else None,
+        "answer_mask": answer if can_see_answer else mask,
+        "answer_length": len(answer), "hint": state.get("hint", ""),
+        "hint_revealed": revealed,
+        "hint_requests": [names.get(str(uid)) or "群友" for uid in state.get("hint_requests", [])],
+        "can_request_hint": bool(not reason and not is_drawer and viewer in names
+                                 and revealed < len(answer) - 1 and viewer not in state.get("hint_requests", [])),
+        "can_reveal_hint": bool(not reason and _can_manage(board, member) and revealed < len(answer) - 1),
+        "guessed_ids": guessed,
+        "guessed_names": [names.get(uid) or "群友" for uid in guessed],
+        "my_guessed": viewer in guessed,
         "ends_at": board.ends_at, "server_time": now, "ended_reason": reason,
+        "duration_seconds": int(state.get("duration_seconds", 120)),
         "canvas_version": state["canvas_version"], "strokes": state["strokes"],
         "winner_id": winner, "winner_name": names.get(winner),
         "joined": viewer in names, "can_end": not reason and _can_manage(board, member),
@@ -275,7 +296,7 @@ async def start(
         "canvas_version": 0, "strokes": [], "point_count": 0,
         "winner_id": None, "ended_reason": None, "attempts": {}, "guesses": [],
         "round_id": str(uuid4()), "round_no": 1, "duration_seconds": payload.duration_seconds,
-        "category": payload.category,
+        "category": payload.category, "guessed": [], "hint_revealed": 0, "hint_requests": [],
     })
 
 
@@ -329,6 +350,52 @@ async def clear(room_id: UUID, board_id: UUID, payload: CanvasInput, member: Gro
     return await _save(db, board, member, state)
 
 
+@router.post("/boards/{board_id}/undo")
+async def undo(room_id: UUID, board_id: UUID, payload: CanvasInput, member: GroupMember = Depends(_viewer), db: AsyncSession = Depends(get_db)):
+    """画手撤销最后一笔。"""
+    board, state, _ = await _live(db, room_id, board_id, payload.round_id)
+    _canvas(board, state, member, payload.canvas_version)
+    strokes = list(state.get("strokes", []))
+    if strokes:
+        removed = strokes.pop()
+        state["strokes"] = strokes
+        state["point_count"] = max(0, int(state.get("point_count", 0)) - len(removed.get("points", [])))
+        state["canvas_version"] = int(state.get("canvas_version", 0)) + 1
+    return await _save(db, board, member, state)
+
+
+@router.post("/boards/{board_id}/hint-request")
+async def request_hint(room_id: UUID, board_id: UUID, payload: RoundInput,
+                       member: GroupMember = Depends(_viewer), db: AsyncSession = Depends(get_db)):
+    board, state, _ = await _live(db, room_id, board_id, payload.round_id)
+    viewer = str(member.user_id)
+    if board.drawer_id == member.user_id:
+        raise HTTPException(403, "画手不需要请求提示")
+    if viewer not in state.get("names", {}):
+        raise HTTPException(403, "请先加入该画板")
+    if int(state.get("hint_revealed", 0)) >= len(state["answer"]) - 1:
+        raise HTTPException(400, "题目已经全部揭示")
+    requests = list(state.get("hint_requests", []))
+    if viewer not in requests:
+        requests.append(viewer)
+    state["hint_requests"] = requests
+    return await _save(db, board, member, state)
+
+
+@router.post("/boards/{board_id}/hint-reveal")
+async def reveal_hint(room_id: UUID, board_id: UUID, payload: RoundInput,
+                      member: GroupMember = Depends(_viewer), db: AsyncSession = Depends(get_db)):
+    board, state, _ = await _live(db, room_id, board_id, payload.round_id)
+    if not _can_manage(board, member):
+        raise HTTPException(403, "只有画手和群管理员可以给提示")
+    revealed = int(state.get("hint_revealed", 0))
+    if revealed >= len(state["answer"]) - 1:
+        raise HTTPException(400, "题目已经全部揭示")
+    state["hint_revealed"] = revealed + 1
+    state["hint_requests"] = []
+    return await _save(db, board, member, state)
+
+
 @router.post("/boards/{board_id}/end")
 async def end(room_id: UUID, board_id: UUID, payload: RoundInput, member: GroupMember = Depends(_viewer), db: AsyncSession = Depends(get_db)):
     board, state, now = await _live(db, room_id, board_id, payload.round_id)
@@ -371,17 +438,30 @@ async def next_round(room_id: UUID, board_id: UUID, payload: NextInput,
         if current_drawer not in state.get("names", {}):
             raise HTTPException(409, "当前画手已离开，请选择「继续画」接手")
 
-    category = state.get("category")
+    category = payload.category or state.get("category")
     words = _THEMES.get(category, _WORDS)
-    pool = [w for w in words if w != state.get("answer")] or list(words)
-    answer = choice(pool)
-    duration = int(state.get("duration_seconds", 120))
+    duration = int(payload.duration_seconds or state.get("duration_seconds", 120))
+    answer = normalize("NFKC", payload.answer or "").strip()[:8]
+    if answer:
+        blocked, _, clean_answer = sensitive_filter.scan(answer)
+        if blocked:
+            raise HTTPException(400, "题目未通过审核")
+        answer = clean_answer
+    else:
+        pool = [w for w in words if w != state.get("answer")] or list(words)
+        answer = choice(pool)
+    hint = normalize("NFKC", payload.hint or "").strip()[:30]
+    if hint:
+        blocked, _, clean_hint = sensitive_filter.scan(hint)
+        if blocked:
+            raise HTTPException(400, "提示未通过审核")
+        hint = clean_hint
     board.ends_at = now + duration * 1000
     state.update(
         names={**state.get("names", {}), viewer: _name(user)},
-        answer=answer, hint="", canvas_version=int(state.get("canvas_version", 0)) + 1,
+        answer=answer, hint=hint, canvas_version=int(state.get("canvas_version", 0)) + 1,
         strokes=[], point_count=0, winner_id=None, ended_reason=None,
-        attempts={}, guesses=[],
+        attempts={}, guesses=[], guessed=[], hint_revealed=0, hint_requests=[],
         round_id=str(uuid4()), round_no=int(state.get("round_no", 1)) + 1,
         duration_seconds=duration, category=category,
     )
@@ -396,6 +476,8 @@ async def guess(room_id: UUID, board_id: UUID, payload: GuessInput, member: Grou
         raise HTTPException(403, "画手不能参与猜词")
     if viewer not in state["names"]:
         raise HTTPException(403, "请先加入该画板")
+    if viewer in [str(uid) for uid in state.get("guessed", [])]:
+        raise HTTPException(409, "你已经猜中啦，等其他人或本轮结束")
     user = await _play_user(db, member)
     text = normalize("NFKC", payload.text).strip()[:64]
     if not text:
@@ -410,6 +492,9 @@ async def guess(room_id: UUID, board_id: UUID, payload: GuessInput, member: Grou
     attempts[viewer] = (count + 1, now)
     state["attempts"] = attempts
     correct = "".join(clean.casefold().split()) == "".join(state["answer"].casefold().split())
+    guessed = [str(uid) for uid in state.get("guessed", [])]
+    if correct and viewer in guessed:
+        raise HTTPException(409, "你已经猜中啦，等其他人或本轮结束")
     name = _name(user)
     state["guesses"] = [*state["guesses"][-(_MAX_GUESS_HISTORY - 1):], {
         "user_id": viewer, "name": name, "text": clean, "ts": now, "correct": correct,
@@ -424,8 +509,14 @@ async def guess(room_id: UUID, board_id: UUID, payload: GuessInput, member: Grou
             raise HTTPException(403, "仅群成员可参与游戏")
         exp = await award_group_exp_flat(db, locked_member, _CORRECT_EXP)
         await _score(db, room_id, viewer, name)
-        board.ends_at = now
-        state.update(winner_id=viewer, ended_reason="guessed", names={**state["names"], viewer: name})
+        guessed.append(viewer)
+        state["guessed"] = guessed
+        state.update(winner_id=viewer, names={**state["names"], viewer: name})
+        # 所有非画手成员都猜中后才结算；否则大家继续猜，先猜中的继续累计积分。
+        guessers = [uid for uid in state["names"] if uid != str(board.drawer_id)]
+        if guessers and all(uid in guessed for uid in guessers):
+            board.ends_at = now
+            state["ended_reason"] = "all_guessed"
     result = await _save(db, board, member, state)
     if exp is not None:
         result.update(exp_gained=exp["gain"], group_level=exp["group_level"],
