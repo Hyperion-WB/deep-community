@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Plus, BarChart3, CheckCircle2, ClipboardList, Link2, Feather } from 'lucide-react';
+import { X, Plus, BarChart3, Brush, CheckCircle2, ClipboardList, Link2, Feather } from 'lucide-react';
 import { apiClient } from '../api/client';
+import { useDialogA11y } from '../hooks/useDialogA11y';
+import { DrawGuessPanel } from './DrawGuessPanel';
 
 const ROOM_PATH = (roomId: string, tail: string) => `/chat/groups/${roomId}/${tail}`;
 
@@ -24,7 +26,7 @@ export const reportGroupExp = (toast: any, data: any) => {
   if (data?.level_up) {
     toast?.success?.(`群等级提升到 Lv.${data?.group_level ?? ''}`);
   } else if (gain === 0 && Number(data?.daily_exp_left) === 0) {
-    toast?.info?.('今日群经验已达上限（80），明天再来');
+    toast?.info?.('今日群经验已达上限，明天再来');
   }
 };
 
@@ -171,7 +173,7 @@ const ChainPanel: React.FC<{ roomId: string; toast: any; refreshKey?: number }> 
     setBusy(true);
     try {
       const r = await apiClient.post(ROOM_PATH(roomId, 'idiom-chain/answer'), { word: candidate });
-      setState(r.data?.state);
+      if (r.data?.state) setState(r.data.state);
       setWord('');
       if (r.data?.ok) {
         const gain = Number(r.data?.exp_gained || 0);
@@ -256,10 +258,10 @@ const ChainPanel: React.FC<{ roomId: string; toast: any; refreshKey?: number }> 
           </div>
           <div className="max-h-32 overflow-y-auto space-y-1">
             {(state?.entries || []).slice(-8).reverse().map((e: any, i: number) => (
-              <div key={i} className="flex items-center gap-2 px-2 py-1 rounded-lg bg-wb-bg-subtle/50 text-3xs">
+              <div key={`${e.ts || i}-${i}`} className={`flex items-center gap-2 px-2 py-1 rounded-lg text-3xs ${e.bot ? 'bg-wb-brand/10 border border-wb-brand/20' : 'bg-wb-bg-subtle/50'}`}>
                 <span className={e.ok ? 'text-wb-success' : 'text-wb-danger'}>{e.ok ? '✓' : '✕'}</span>
                 <span className="font-semibold">{e.word}</span>
-                <span className="text-wb-text-muted truncate">{e.user}{e.reason ? ` · ${e.reason}` : ''}</span>
+                <span className="text-wb-text-muted truncate">{e.user}{e.bot ? ' · AI 接词' : e.reason ? ` · ${e.reason}` : ''}</span>
               </div>
             ))}
           </div>
@@ -829,7 +831,7 @@ const FeihuaPanel: React.FC<{ roomId: string; toast: any; canManage: boolean; re
 /* ==================== 统一入口 ==================== */
 interface Props {
   roomId: string;
-  kind: 'chain' | 'poll' | 'feihua' | null;
+  kind: 'chain' | 'poll' | 'feihua' | 'draw' | null;
   canManage: boolean;
   toast: any;
   /** 递增即触发接龙面板刷新（后端 chain_update 推送时更新） */
@@ -841,13 +843,37 @@ interface Props {
   onShareToGroup?: (text: string) => void;
 }
 
+const DrawGuessModal: React.FC<Pick<Props, 'roomId' | 'toast' | 'onClose' | 'embedded'>> = ({ roomId, toast, onClose, embedded }) => {
+  const dialogRef = useDialogA11y(true, onClose, embedded ? 9995 : 160);
+
+  return createPortal(
+    <div className={`fixed inset-0 flex items-center justify-center sm:p-3 lg:p-5 ${embedded ? 'z-[9995] bg-black/35' : 'z-[160] bg-black/50 backdrop-blur-sm'}`} onClick={onClose}>
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="你画我猜" tabIndex={-1}
+        className="flex h-full min-h-0 w-full max-w-[1360px] flex-col overflow-hidden bg-wb-bg-page shadow-2xl outline-none sm:h-auto sm:max-h-[min(96dvh,1000px)] sm:rounded-2xl sm:border sm:border-wb-border-subtle"
+        onClick={(event) => event.stopPropagation()}>
+        <header className="flex shrink-0 items-center justify-between gap-2 border-b border-wb-border-subtle bg-wb-bg-surface px-3 py-1 sm:px-5">
+          <h3 className="flex items-center gap-2 text-base font-bold text-wb-text-primary"><Brush className="h-4 w-4 text-wb-brand" />你画我猜</h3>
+          <button type="button" onClick={onClose} aria-label="关闭你画我猜" className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-wb-text-muted hover:bg-wb-bg-subtle focus-visible:outline focus-visible:outline-wb-brand">
+            <X className="h-5 w-5" />
+          </button>
+        </header>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:p-4">
+          <DrawGuessPanel key={roomId} roomId={roomId} onGroupExp={(data) => reportGroupExp(toast, data)} />
+        </div>
+      </div>
+    </div>, document.body
+  );
+};
+
 export const GroupActivitiesModal: React.FC<Props> = ({ roomId, kind, canManage, toast, refreshKey = 0, onClose, embedded = false, onShareToGroup }) => {
   useEffect(() => {
+    if (!kind || kind === 'draw') return;
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, [kind, onClose]);
   if (!kind) return null;
+  if (kind === 'draw') return <DrawGuessModal roomId={roomId} toast={toast} onClose={onClose} embedded={embedded} />;
   return createPortal(
     <div
       className={embedded

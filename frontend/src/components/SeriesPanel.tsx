@@ -4,6 +4,7 @@ import { BookOpen, ChevronDown, Plus, Layers, Trash2, X, GripVertical, ArrowDown
 import { apiClient } from '../api/client';
 import { useToast } from './Toast';
 import { InlineErrorState } from './InlineErrorState';
+import type { UserProfile } from '../types';
 
 interface Chapter {
   id: number;
@@ -14,6 +15,7 @@ interface Chapter {
 
 interface Series {
   id: string;
+  author_id: string;
   author_username: string;
   author_nickname?: string | null;
   title: string;
@@ -26,8 +28,9 @@ interface Series {
 const SERIES_ORDER_KEY = 'wb_series_order';
 
 /** 专栏 / 文章合集：多个专栏可独立折叠，支持倒序与拖拽排序，展开带高度动画避免页面跳动。 */
-export const SeriesPanel: React.FC<{ onSelectPost: (id: string) => void; myOnly?: boolean; title?: string }> = ({
+export const SeriesPanel: React.FC<{ onSelectPost: (id: string) => void; viewer?: UserProfile | null; myOnly?: boolean; title?: string }> = ({
   onSelectPost,
+  viewer,
   myOnly = false,
   title = '专栏',
 }) => {
@@ -56,27 +59,36 @@ export const SeriesPanel: React.FC<{ onSelectPost: (id: string) => void; myOnly?
   const [dragChapter, setDragChapter] = useState<{ seriesId: string; index: number } | null>(null);
   const [dropHint, setDropHint] = useState<string | null>(null);
 
-  const isLogged = !!localStorage.getItem('access_token');
-  const myUsername = (() => {
-    try { return JSON.parse(localStorage.getItem('geek_user') || '{}')?.username || ''; } catch { return ''; }
-  })();
-
-  const load = useCallback(async () => {
-    setLoading(true);
+  const isLogged = !!viewer;
+  const isStaff = !!viewer && ['super_admin', 'admin', 'moderator', 'auditor'].includes(viewer.role);
+  const load = useCallback(async (signal?: AbortSignal) => {
     setError(false);
     try {
-      const res = await apiClient.get('/posts/series/all', { params: { page: 1, size: 50 } });
-      let data = Array.isArray(res.data) ? res.data : [];
-      if (myOnly) data = data.filter((x: Series) => x.author_username === myUsername);
-      setList(data);
+      const res = await apiClient.get(myOnly ? '/posts/series/mine' : '/posts/series/all', {
+        params: { page: 1, size: 50 }, signal,
+      });
+      if (!signal?.aborted) setList(Array.isArray(res.data) ? res.data : []);
     } catch {
-      setError(true);
+      if (!signal?.aborted) setError(true);
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
-  }, [myOnly, myUsername]);
+  }, [myOnly]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    let controller: AbortController | undefined;
+    const refresh = () => {
+      controller?.abort();
+      controller = new AbortController();
+      void load(controller.signal);
+    };
+    refresh();
+    window.addEventListener('wb:series-changed', refresh);
+    return () => {
+      window.removeEventListener('wb:series-changed', refresh);
+      controller?.abort();
+    };
+  }, [load]);
 
   // 倒序开关与自定义拖拽顺序叠加：自定义顺序优先，未记录的按原顺序追加
   const orderedList = useMemo(() => {
@@ -108,7 +120,7 @@ export const SeriesPanel: React.FC<{ onSelectPost: (id: string) => void; myOnly?
       await apiClient.post('/posts/series', { title: newTitle.trim(), description: newDesc.trim() });
       toast.success('专栏已创建');
       setNewTitle(''); setNewDesc(''); setCreating(false);
-      await load();
+      window.dispatchEvent(new Event('wb:series-changed'));
     } catch (e: any) {
       toast.error(e?.response?.data?.detail || '创建失败');
     } finally { setBusy(false); }
@@ -119,12 +131,10 @@ export const SeriesPanel: React.FC<{ onSelectPost: (id: string) => void; myOnly?
     if (!/^[0-9a-f-]{36}$/i.test(id)) return toast.error('请填写有效的文章 ID');
     setBusy(true);
     try {
-      // 追加到末尾：避免新章节都挤在 sort_order=0 导致顺序不稳定
-      const maxOrder = (s.items || []).reduce((m, it) => Math.max(m, it.sort_order || 0), -1);
-      await apiClient.post(`/posts/series/${s.id}/items`, { post_id: id, sort_order: maxOrder + 1 });
+      await apiClient.post(`/posts/series/${s.id}/items`, { post_id: id });
       toast.success('文章已编入目录');
       setPostId(''); setAddFor(null);
-      await load();
+      window.dispatchEvent(new Event('wb:series-changed'));
       setOpenIds(prev => new Set(prev).add(s.id));
     } catch (e: any) {
       toast.error(e?.response?.data?.detail || '添加失败');
@@ -138,7 +148,7 @@ export const SeriesPanel: React.FC<{ onSelectPost: (id: string) => void; myOnly?
       await apiClient.put(`/posts/series/${id}`, { title: editTitle.trim(), description: editDesc.trim() });
       toast.success('专栏信息已更新');
       setEditId(null);
-      await load();
+      window.dispatchEvent(new Event('wb:series-changed'));
     } catch (e: any) { toast.error(e?.response?.data?.detail || '保存失败'); }
     finally { setBusy(false); }
   };
@@ -147,7 +157,7 @@ export const SeriesPanel: React.FC<{ onSelectPost: (id: string) => void; myOnly?
     setBusy(true);
     try {
       await apiClient.put(`/posts/series/${s.id}/items/order`, { post_ids: items.map(i => i.post_id) });
-      await load();
+      window.dispatchEvent(new Event('wb:series-changed'));
     } catch (e: any) { toast.error(e?.response?.data?.detail || '排序失败'); }
     finally { setBusy(false); }
   };
@@ -251,7 +261,7 @@ export const SeriesPanel: React.FC<{ onSelectPost: (id: string) => void; myOnly?
       )}
 
       {error ? (
-        <InlineErrorState compact label="专栏加载失败" onRetry={() => void load()} />
+        <InlineErrorState compact label="专栏加载失败" onRetry={() => window.dispatchEvent(new Event('wb:series-changed'))} />
       ) : loading ? (
         <div className="h-12 rounded-xl bg-wb-bg-subtle animate-pulse" />
       ) : list.length === 0 ? (
@@ -259,6 +269,7 @@ export const SeriesPanel: React.FC<{ onSelectPost: (id: string) => void; myOnly?
       ) : (
         <div className="space-y-2">
           {orderedList.map((s, sIdx) => {
+            const canManage = !!viewer && (viewer.id === s.author_id || isStaff);
             const isOpen = openIds.has(s.id);
             const shown = chapterDesc[s.id] ? [...(s.items || [])].reverse() : (s.items || []);
             return (
@@ -316,10 +327,10 @@ export const SeriesPanel: React.FC<{ onSelectPost: (id: string) => void; myOnly?
                             className="text-3xs text-wb-text-muted hover:text-wb-text-primary inline-flex items-center gap-1">
                             <ArrowDownUp className="w-3 h-3" /> {chapterDesc[s.id] ? '倒序中' : '正序中'}
                           </button>
-                          <span className="text-3xs text-wb-text-muted">可拖动章节排序</span>
+                          {canManage && <span className="text-3xs text-wb-text-muted">可拖动章节排序</span>}
                         </div>
 
-                        {editId === s.id ? (
+                        {canManage && editId === s.id ? (
                           <div className="space-y-1.5 pb-1">
                             <input value={editTitle} onChange={e => setEditTitle(e.target.value)} aria-label="专栏标题"
                               className="w-full px-2 py-1.5 rounded-lg bg-wb-bg-surface border border-wb-border-subtle text-2xs outline-none" />
@@ -337,7 +348,7 @@ export const SeriesPanel: React.FC<{ onSelectPost: (id: string) => void; myOnly?
                         {shown.length === 0 && <p className="text-3xs text-wb-text-muted">暂无章节</p>}
                         {shown.map((it, i) => (
                           <div key={it.id}
-                            draggable={isLogged}
+                            draggable={canManage && !busy}
                             onDragStart={(e) => { e.stopPropagation(); e.dataTransfer.effectAllowed = 'move'; setDragChapter({ seriesId: s.id, index: i }); }}
                             onDragOver={(e) => {
                               if (!dragChapter || dragChapter.seriesId !== s.id) return;
@@ -349,12 +360,12 @@ export const SeriesPanel: React.FC<{ onSelectPost: (id: string) => void; myOnly?
                             className={`flex items-center gap-1 group/chapter rounded-lg transition-colors ${
                               dropHint === `${s.id}-${i}` ? 'bg-wb-brand/10' : ''}`}
                           >
-                            {isLogged && <GripVertical className="w-3 h-3 text-wb-text-muted/60 shrink-0 cursor-grab" aria-hidden />}
+                            {canManage && <GripVertical className="w-3 h-3 text-wb-text-muted/60 shrink-0 cursor-grab" aria-hidden />}
                             <button type="button" onClick={() => onSelectPost(it.post_id)}
                               className="min-w-0 flex-1 text-left text-3xs text-wb-text-secondary hover:text-wb-text-primary py-1.5 px-2 rounded-lg hover:bg-wb-bg-surface border border-transparent hover:border-wb-border-subtle transition-colors truncate">
                               {chapterDesc[s.id] ? shown.length - i : i + 1}. {it.post_title}
                             </button>
-                            {isLogged && (
+                            {canManage && (
                               <>
                                 <button type="button" aria-label="上移章节" disabled={busy} onClick={() => moveChapter(s, chapterDesc[s.id] ? shown.length - 1 - i : i, -1)} className="p-1 rounded text-wb-text-muted hover:text-wb-text-primary disabled:opacity-40">↑</button>
                                 <button type="button" aria-label="下移章节" disabled={busy} onClick={() => moveChapter(s, chapterDesc[s.id] ? shown.length - 1 - i : i, 1)} className="p-1 rounded text-wb-text-muted hover:text-wb-text-primary disabled:opacity-40">↓</button>
@@ -363,7 +374,7 @@ export const SeriesPanel: React.FC<{ onSelectPost: (id: string) => void; myOnly?
                                     try {
                                       await apiClient.delete(`/posts/series/${s.id}/items/${it.post_id}`);
                                       toast.success('已从目录移除');
-                                      await load();
+                                      window.dispatchEvent(new Event('wb:series-changed'));
                                     } catch (e: any) { toast.error(e?.response?.data?.detail || '移除失败'); }
                                   }}
                                   className="p-1.5 rounded-lg text-wb-text-muted hover:text-wb-danger hover:bg-wb-danger/10 opacity-0 group-hover/chapter:opacity-100 transition-opacity">
@@ -374,7 +385,7 @@ export const SeriesPanel: React.FC<{ onSelectPost: (id: string) => void; myOnly?
                           </div>
                         ))}
 
-                        {isLogged && (
+                        {canManage && (
                           <div className="flex items-center gap-3 pt-1">
                             <button type="button"
                               onClick={() => { setEditId(s.id); setEditTitle(s.title); setEditDesc(s.description || ''); }}
@@ -385,7 +396,7 @@ export const SeriesPanel: React.FC<{ onSelectPost: (id: string) => void; myOnly?
                                   await apiClient.delete(`/posts/series/${s.id}`);
                                   toast.success('专栏已删除');
                                   setOpenIds(prev => { const n = new Set(prev); n.delete(s.id); return n; });
-                                  await load();
+                                  window.dispatchEvent(new Event('wb:series-changed'));
                                 } catch (e: any) { toast.error(e?.response?.data?.detail || '删除失败'); }
                               }}
                               className="inline-flex items-center gap-1 text-3xs text-wb-text-muted hover:text-wb-danger">
@@ -393,7 +404,7 @@ export const SeriesPanel: React.FC<{ onSelectPost: (id: string) => void; myOnly?
                             </button>
                           </div>
                         )}
-                        {isLogged && (
+                        {canManage && (
                           addFor === s.id ? (
                             <div className="flex gap-1.5 pt-1">
                               <input value={postId} onChange={e => setPostId(e.target.value)} placeholder="文章 ID" aria-label="要编入的文章 ID"

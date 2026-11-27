@@ -1,5 +1,17 @@
-import { useEffect, useId, useRef } from 'react';
-import { acquireScrollLock, registerEsc } from '../utils/overlay';
+import { useEffect, useId, useLayoutEffect, useRef } from 'react';
+import { acquireScrollLock, isTopOverlay, registerEsc } from '../utils/overlay';
+
+export function useOverlayEscape(open: boolean, onClose: () => void, priority?: number) {
+  const id = useId();
+  const onCloseRef = useRef(onClose);
+  useLayoutEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+  useLayoutEffect(() => {
+    if (open) return registerEsc(id, () => onCloseRef.current(), priority);
+  }, [id, open, priority]);
+  return id;
+}
 
 /**
  * 手写弹窗的无障碍与交互补全：
@@ -10,21 +22,15 @@ import { acquireScrollLock, registerEsc } from '../utils/overlay';
  *   const dialogRef = useDialogA11y(open, onClose);
  *   <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="...">
  */
-export function useDialogA11y(open: boolean, onClose: () => void) {
-  const overlayId = useId();
+export function useDialogA11y(open: boolean, onClose: () => void, priority?: number) {
+  const overlayId = useOverlayEscape(open, onClose, priority);
   const containerRef = useRef<HTMLDivElement>(null);
-  const onCloseRef = useRef(onClose);
-
-  useEffect(() => {
-    onCloseRef.current = onClose;
-  }, [onClose]);
 
   useEffect(() => {
     if (!open) return;
 
     const previouslyFocused = document.activeElement as HTMLElement | null;
     const releaseLock = acquireScrollLock();
-    const unregisterEsc = registerEsc(overlayId, () => onCloseRef.current());
 
     const getFocusable = (): HTMLElement[] => {
       const root = containerRef.current;
@@ -38,7 +44,7 @@ export function useDialogA11y(open: boolean, onClose: () => void) {
 
     // ESC 由全局栈处理
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Tab') return;
+      if (event.key !== 'Tab' || !isTopOverlay(overlayId)) return;
       const focusable = getFocusable();
       if (focusable.length === 0) return;
       const first = focusable[0];
@@ -56,16 +62,18 @@ export function useDialogA11y(open: boolean, onClose: () => void) {
 
     // 等一帧再聚焦，确保弹窗内容已完成渲染
     const focusTimer = window.setTimeout(() => {
+      if (!isTopOverlay(overlayId)) return;
       const focusable = getFocusable();
       (focusable[0] || containerRef.current)?.focus?.();
     }, 30);
 
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
-      unregisterEsc();
       releaseLock();
       window.clearTimeout(focusTimer);
-      previouslyFocused?.focus?.();
+      if (containerRef.current?.contains(document.activeElement) || document.activeElement === document.body) {
+        previouslyFocused?.focus();
+      }
     };
   }, [open, overlayId]);
 

@@ -162,7 +162,7 @@ export const CheckinHeatmap: React.FC<Props> = ({ username, canMakeup = false })
     }
     if (makeupLeft <= 0) {
       toast.info(
-        `补签卡不足：本月可获得 0 张（连续签到 ${milestones.join(' / ')} 天各 +1 张，每月 1 号重置，补签日不计入）`
+        `本月没有剩余补签卡（连续签到 ${milestones.join(' / ')} 天各 +1 张，每月 1 号重置，补签日不计入）`
       );
       return;
     }
@@ -184,7 +184,6 @@ export const CheckinHeatmap: React.FC<Props> = ({ username, canMakeup = false })
       toast.success(
         `已补签 ${cell.date}${Number(res.data?.streak) ? ` · 连续 ${res.data.streak} 天` : ''}`
       );
-      await load();
       window.dispatchEvent(new CustomEvent('geek:checkin-done'));
     } catch (err: any) {
       toast.error(err?.response?.data?.detail || '补签失败');

@@ -36,6 +36,7 @@ const Profile = React.lazy(() => import('./pages/Profile').then((m) => ({ defaul
 const Admin = React.lazy(() => import('./pages/Admin').then((m) => ({ default: m.Admin })));
 const Feedback = React.lazy(() => import('./pages/Feedback').then((m) => ({ default: m.Feedback })));
 const Checkin = React.lazy(() => import('./pages/Checkin').then((m) => ({ default: m.Checkin })));
+const HabitCheckin = React.lazy(() => import('./pages/HabitCheckin').then((m) => ({ default: m.HabitCheckin })));
 const CommunityRules = React.lazy(() => import('./pages/CommunityRules').then((m) => ({ default: m.CommunityRules })));
 const LegalDisclaimer = React.lazy(() => import('./pages/LegalDisclaimer').then((m) => ({ default: m.LegalDisclaimer })));
 
@@ -47,7 +48,7 @@ const PageFallback: React.FC = () => (
 );
 
 // 可写入 URL 的页签白名单：刷新后仍停留在原页面
-const VALID_TABS = ['home', 'feedback', 'write', 'daily', 'chat', 'profile', 'admin', 'rules', 'legal', 'links', 'checkin'];
+const VALID_TABS = ['home', 'feedback', 'write', 'daily', 'chat', 'profile', 'admin', 'rules', 'legal', 'links', 'checkin', 'habit'];
 
 export const AppContent: React.FC = () => {
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -203,7 +204,7 @@ export const AppContent: React.FC = () => {
           // 返回/前进到任意合法 tab 都要同步页面状态，否则 URL 与内容脱节
           const validTabs = new Set([
             'home', 'chat', 'write', 'profile', 'admin', 'rules', 'legal',
-            'feedback', 'links', 'checkin', 'search', 'notifications',
+            'feedback', 'links', 'checkin', 'habit', 'search', 'notifications',
           ]);
           if (tab === 'rules') {
             setCurrentTab('rules');
@@ -532,7 +533,6 @@ export const AppContent: React.FC = () => {
       void syncMutedFromCloud();
       // 账号级默认界面：换设备 / 重新登录后仍按服务端保存的选择展示
       void syncPortalFromCloud();
-      // 节日限定：当天首次进入自动解锁并播放庆祝动画
       apiClient.get('/achievements/festival')
         .then((res) => {
           if (res.data?.active && res.data?.first_visit) setFestival(res.data);
@@ -591,7 +591,7 @@ export const AppContent: React.FC = () => {
         const notice = new Notification(title, {
           body,
           icon: '/notify-icon.png',
-          tag: 'community-chat',
+          tag: 'deepcommunity-chat',
         });
         notice.onclick = () => {
           try {
@@ -1005,6 +1005,7 @@ export const AppContent: React.FC = () => {
             onRequireAuth={() => setAuthModalOpen(true)}
             onGoWrite={() => setCurrentTab('write')}
             onGoWriteDaily={() => setCurrentTab('daily')}
+            onGoHabit={() => { setCurrentTab('habit'); window.scrollTo(0, 0); }}
             onGoAdmin={() => setCurrentTab('admin')}
             onRefreshUser={fetchCurrentUser}
             onSelectUser={handleSelectUser}
@@ -1034,6 +1035,7 @@ export const AppContent: React.FC = () => {
               onRequireAuth={() => setAuthModalOpen(true)}
               onGoWrite={() => setCurrentTab('write')}
               onGoWriteDaily={() => setCurrentTab('daily')}
+              onGoHabit={() => { setCurrentTab('habit'); window.scrollTo(0, 0); }}
               onGoCheckin={() => void fetchCurrentUser()}
               onGoRules={handleGoRules}
               onGoLegal={handleGoLegal}
@@ -1131,6 +1133,13 @@ export const AppContent: React.FC = () => {
                   onSelectUser={handleSelectUser}
                 />
               )}
+              {currentTab === 'habit' && authChecked && user && (
+                <HabitCheckin
+                  user={user}
+                  onBack={() => setCurrentTab('home')}
+                  onRequireAuth={() => setAuthModalOpen(true)}
+                />
+              )}
               {currentTab === 'admin' && (
                 <Admin user={user} onSelectUser={handleSelectUser} />
               )}
@@ -1200,6 +1209,7 @@ export const AppContent: React.FC = () => {
           handleStartChat('', username, groupId);
         }}
         onNotificationsChange={(cnt) => { setUnreadCount(cnt); broadcastUnread(cnt, null); }}
+        globalUnreadCount={unreadCount}
         selfUsername={user?.username}
         selfUserId={user?.id}
       />

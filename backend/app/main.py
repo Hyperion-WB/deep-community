@@ -10,7 +10,7 @@ from app.core.database import engine, Base, init_redis, close_redis, get_redis
 from app.core.migrations import ensure_schema, run_migrations
 from app.tasks.scheduler import start_scheduler, stop_scheduler
 
-from app.routers import ai_admin, site_contents, group_activities, qa, battles, media, minigames, stats, auth, users, posts, comments, polls, chat, admin, feedback, reactions, rules, ops, achievements, search, sensitive_words_admin, friend_links, stickers, meta, food, doudizhu, doudizhu_points
+from app.routers import ai_admin, site_contents, group_activities, qa, battles, media, minigames, stats, auth, users, posts, comments, polls, chat, admin, feedback, reactions, rules, ops, achievements, search, sensitive_words_admin, friend_links, stickers, meta, food, doudizhu, doudizhu_points, draw_guess, habits
 
 import app.models # 确保所有 ORM 模型类被加载注册
 import secrets
@@ -323,6 +323,8 @@ app.include_router(stickers.router, prefix=settings.API_V1_STR)
 app.include_router(food.router, prefix=settings.API_V1_STR)
 app.include_router(doudizhu.router, prefix=settings.API_V1_STR)
 app.include_router(doudizhu_points.router, prefix=settings.API_V1_STR)
+app.include_router(draw_guess.router, prefix=settings.API_V1_STR)
+app.include_router(habits.router, prefix=settings.API_V1_STR)
 
 # 最近 5 分钟的 5xx 计数：供 healthz 判断「接口是否在大面积报错」。
 # 站点整体可访问、但接口全是 500 的情况下，外部监控只能靠这个发现。

@@ -73,3 +73,5 @@ __all__ = [
 ]
 
 from app.models import game_platform  # noqa: F401  注册 404 游戏平台模型
+from app.models.food import FoodCard, FoodCardComment, LunchPool, LunchDish, LunchSpin, WheelPreset  # noqa: F401
+from app.models.habit import HabitGoal, HabitCheckin, HabitImage, HabitFollow, HabitLike, HabitComment  # noqa: F401

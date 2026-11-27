@@ -68,7 +68,6 @@ export const Checkin: React.FC<Props> = ({ user, onBack, onRequireAuth, onSelect
       const r = await apiClient.post('/users/checkin');
       toast.success(`签到成功 · 连续 ${r.data?.continuous_days || 1} 天，经验 +${r.data?.exp_gained || 0}`);
       window.dispatchEvent(new CustomEvent('geek:checkin-done'));
-      await load();
     } catch (err: any) {
       toast.info(err?.response?.data?.detail || '签到失败，稍后再试');
     } finally {

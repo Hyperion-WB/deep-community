@@ -602,6 +602,23 @@ def start_scheduler():
     scheduler.add_job(_feihua_auto_end_safe, 'interval', seconds=30,
                       id='feihua_auto_end', timezone=JOB_TZ)
 
+    async def _draw_guess_auto_end_safe():
+        if not await acquire_job_lock('draw_guess_auto_end', ttl_seconds=55):
+            return
+        try:
+            from app.core.database import AsyncSessionLocal
+            from app.routers.draw_guess import auto_end_expired_boards, prune_board_history
+            async with AsyncSessionLocal() as db:
+                count = await auto_end_expired_boards(db)
+                pruned = await prune_board_history(db)
+                if count or pruned:
+                    logger.info("[Scheduler] 画猜自动结束 %s 局，清理 %s 个历史画板", count, pruned)
+        except Exception:
+            logger.exception("[Scheduler] 画猜结算/历史清理失败")
+
+    scheduler.add_job(_draw_guess_auto_end_safe, 'interval', seconds=30,
+                      id='draw_guess_auto_end', max_instances=1, timezone=JOB_TZ)
+
     async def _ai_daily_digest_safe():
         """每天 20:00（北京时间）给所有超级管理员推送 AI 回复日报。"""
         if not await acquire_job_lock('ai_daily_digest', ttl_seconds=600):

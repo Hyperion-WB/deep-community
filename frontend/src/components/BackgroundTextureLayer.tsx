@@ -16,6 +16,7 @@ type FluidEngine = {
   end: (id: string | number) => void;
   resize: () => void;
   setPaused: (value: boolean) => void;
+  dispose: () => void;
 };
 
 declare global {
@@ -26,54 +27,58 @@ declare global {
 
 const DRIFT_TEXTURES: TextureId[] = ['glow', 'aurora', 'bokeh'];
 
-const loadFluidScript = (): Promise<void> =>
-  new Promise((resolve, reject) => {
-    if (window.createGX404Fluid) {
-      resolve();
-      return;
-    }
-    const existing = document.querySelector<HTMLScriptElement>('script[data-fluid-engine]');
-    if (existing) {
-      existing.addEventListener('load', () => resolve());
-      existing.addEventListener('error', () => reject(new Error('fluid load failed')));
-      return;
-    }
+let fluidScript: Promise<void> | undefined;
+const loadFluidScript = (): Promise<void> => {
+  if (window.createGX404Fluid) return Promise.resolve();
+  return (fluidScript ??= new Promise<void>((resolve, reject) => {
     const script = document.createElement('script');
     script.src = '/fluid.js';
     script.async = true;
-    script.dataset.fluidEngine = 'true';
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error('fluid load failed'));
+    const fail = () => {
+      script.remove();
+      reject(new Error('fluid load failed'));
+    };
+    script.onload = () => (window.createGX404Fluid ? resolve() : fail());
+    script.onerror = fail;
     document.head.appendChild(script);
-  });
+  }).catch((error: unknown) => {
+    fluidScript = undefined;
+    throw error;
+  }));
+};
 
 export const BackgroundTextureLayer: React.FC = () => {
-  const [texture, setTexture] = useState<TextureId>(() => getUiPreferences().texture);
+  const [preferences, setPreferences] = useState(getUiPreferences);
+  const [systemReduced, setSystemReduced] = useState(
+    () => window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+  );
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const { texture, motion } = preferences;
+  const fluidEnabled = texture === 'flashbang' && motion === 'full' && !systemReduced;
 
   useEffect(() => {
-    const sync = () => setTexture(getUiPreferences().texture);
+    const media = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const sync = () => setPreferences(getUiPreferences());
+    const syncMotion = () => setSystemReduced(media.matches);
     window.addEventListener(UI_PREFS_CHANGE_EVENT, sync);
-    return () => window.removeEventListener(UI_PREFS_CHANGE_EVENT, sync);
+    media.addEventListener('change', syncMotion);
+    sync();
+    syncMotion();
+    return () => {
+      window.removeEventListener(UI_PREFS_CHANGE_EVENT, sync);
+      media.removeEventListener('change', syncMotion);
+    };
   }, []);
 
   useEffect(() => {
-    if (texture !== 'flashbang') return;
+    if (!fluidEnabled) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
-
-    // 关闭动效 / 系统减弱动效：不启动 WebGL，保留静态底色即可
-    const reduceMotion =
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches ||
-      getUiPreferences().motion !== 'full';
-    if (reduceMotion) {
-      canvas.style.display = 'none';
-      return;
-    }
 
     let engine: FluidEngine | null = null;
     let disposed = false;
     const activePointers = new Set<number>();
+    const introTimers: number[] = [];
 
     const handlePointerDown = (event: PointerEvent) => {
       if (!engine || disposed) return;
@@ -93,22 +98,51 @@ export const BackgroundTextureLayer: React.FC = () => {
       engine?.end(event.pointerId);
     };
     const handleResize = () => engine?.resize();
-    const handleVisibility = () => engine?.setPaused(document.visibilityState === 'hidden');
+    const handleVisibility = () => {
+      const hidden = document.hidden;
+      if (hidden) activePointers.clear();
+      engine?.setPaused(hidden);
+    };
+    const cleanup = () => {
+      if (disposed) return;
+      disposed = true;
+      window.removeEventListener('pointerdown', handlePointerDown);
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+      window.removeEventListener('pointercancel', handlePointerUp);
+      window.removeEventListener('resize', handleResize);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      canvas.removeEventListener('webglcontextlost', fallBack);
+      introTimers.forEach((timer) => window.clearTimeout(timer));
+      activePointers.clear();
+      // 兼容可能仍缓存旧版脚本的页面。
+      if (engine?.dispose) engine.dispose();
+      else engine?.setPaused(true);
+      engine = null;
+    };
+    const fallBack = () => {
+      if (disposed) return;
+      canvas.style.display = 'none';
+      cleanup();
+    };
 
+    canvas.addEventListener('webglcontextlost', fallBack);
     loadFluidScript()
       .then(() => {
-        if (disposed || !window.createGX404Fluid) return;
+        if (disposed) return;
+        if (!window.createGX404Fluid) throw new Error('fluid factory unavailable');
         engine = window.createGX404Fluid(canvas);
+        handleVisibility();
         // 开场：中部撒几簇颜色，和参考网页一致
         const count = window.innerWidth < 600 ? 3 : 4;
         for (let i = 0; i < count; i += 1) {
-          window.setTimeout(() => {
-            if (disposed || !engine) return;
+          introTimers.push(window.setTimeout(() => {
+            if (!engine) return;
             const x = window.innerWidth * (0.2 + (0.6 * (i + Math.random())) / count);
             const y = window.innerHeight * (0.3 + Math.random() * 0.4);
             engine.start(`intro${i}`, x, y);
             engine.end(`intro${i}`);
-          }, i * 220);
+          }, i * 220));
         }
         window.addEventListener('pointerdown', handlePointerDown, { passive: true });
         window.addEventListener('pointermove', handlePointerMove, { passive: true });
@@ -117,33 +151,17 @@ export const BackgroundTextureLayer: React.FC = () => {
         window.addEventListener('resize', handleResize, { passive: true });
         document.addEventListener('visibilitychange', handleVisibility);
       })
-      .catch(() => {
-        canvas.style.display = 'none';
-      });
+      .catch(fallBack);
 
-    return () => {
-      disposed = true;
-      window.removeEventListener('pointerdown', handlePointerDown);
-      window.removeEventListener('pointermove', handlePointerMove);
-      window.removeEventListener('pointerup', handlePointerUp);
-      window.removeEventListener('pointercancel', handlePointerUp);
-      window.removeEventListener('resize', handleResize);
-      document.removeEventListener('visibilitychange', handleVisibility);
-      try {
-        engine?.setPaused(true);
-      } catch {
-        /* ignore */
-      }
-      activePointers.clear();
-    };
-  }, [texture]);
+    return cleanup;
+  }, [fluidEnabled]);
 
   const showDrift = DRIFT_TEXTURES.includes(texture);
 
   return (
     <>
       {showDrift && <div className="wb-texture-drift" aria-hidden="true" />}
-      {texture === 'flashbang' && (
+      {fluidEnabled && (
         <canvas ref={canvasRef} className="wb-texture-canvas" aria-hidden="true" />
       )}
     </>

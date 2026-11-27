@@ -8,7 +8,7 @@ export const GROUP_BADGE_NAMES = [
   '常驻原住民', '群里老面孔', '传说路人', '群内传说', '次元锚点',
 ];
 
-/** 逐级区分的配色：低等级朴素、高等级发光、20 级动态渐变 */
+/** 逐级区分的静态配色：7-19 级渐变，20 级保留原有彩虹色 */
 const BADGE_STYLES: { from: string; to: string; glow: string }[] = [
   { from: '#9aa4b2', to: '#6b7280', glow: 'rgba(148,163,184,.30)' },
   { from: '#8fb8c9', to: '#5b8a9e', glow: 'rgba(125,190,210,.35)' },
@@ -16,19 +16,19 @@ const BADGE_STYLES: { from: string; to: string; glow: string }[] = [
   { from: '#8aa9d6', to: '#4f74b8', glow: 'rgba(110,150,225,.45)' },
   { from: '#a89ad6', to: '#7059b8', glow: 'rgba(160,130,235,.48)' },
   { from: '#7f9ee8', to: '#4c5fc4', glow: 'rgba(105,135,240,.55)' },
-  { from: '#b48ee0', to: '#8247bd', glow: 'rgba(180,120,235,.58)' },
-  { from: '#e08bb6', to: '#c04d86', glow: 'rgba(225,120,175,.60)' },
-  { from: '#ef9a86', to: '#d95f4b', glow: 'rgba(235,135,110,.62)' },
-  { from: '#e8b45f', to: '#c8872c', glow: 'rgba(240,185,90,.65)' },
-  { from: '#f0c14b', to: '#d99a1f', glow: 'rgba(250,200,70,.72)' },
-  { from: '#f2a33c', to: '#d9701a', glow: 'rgba(250,165,60,.75)' },
-  { from: '#f07a5a', to: '#d94a2c', glow: 'rgba(250,120,80,.78)' },
-  { from: '#ec5f8a', to: '#c72f66', glow: 'rgba(245,95,145,.80)' },
-  { from: '#d65ec9', to: '#a32ba8', glow: 'rgba(220,95,210,.82)' },
-  { from: '#9a6ff0', to: '#6c3ad6', glow: 'rgba(160,110,245,.85)' },
-  { from: '#5f8ff5', to: '#2f57d6', glow: 'rgba(95,145,250,.88)' },
-  { from: '#3fc7d6', to: '#1a8fb8', glow: 'rgba(65,205,220,.90)' },
-  { from: '#3fd39a', to: '#12a06e', glow: 'rgba(60,220,160,.92)' },
+  { from: '#167751', to: '#123d38', glow: '#58dfa5' },
+  { from: '#127b83', to: '#233b72', glow: '#69e1e7' },
+  { from: '#285cca', to: '#282665', glow: '#88b8ff' },
+  { from: '#8044b8', to: '#44206a', glow: '#d2a2ff' },
+  { from: '#a83578', to: '#591e4b', glow: '#ffa6dc' },
+  { from: '#af4731', to: '#601e30', glow: '#ffac8d' },
+  { from: '#513017', to: '#a1621e 52%, #513017', glow: '#ffce7b' },
+  { from: '#263749', to: '#61788f 52%, #263044', glow: '#d7edff' },
+  { from: '#08533d', to: '#16776e 52%, #163446', glow: '#80ffd0' },
+  { from: '#571728', to: '#a12c46 48%, #420f37', glow: '#ff95ab' },
+  { from: '#192b61', to: '#345bbb 41%, #5147ad 64%, #24204c', glow: '#9cd6ff' },
+  { from: '#38234f', to: '#74429b 41%, #884578 64%, #322052', glow: '#f0acff' },
+  { from: '#403323', to: '#8c642b 41%, #704e25 62%, #35283c', glow: '#ffe39e' },
   { from: '#ff5f6d', to: '#5b8cff', glow: 'rgba(190,120,255,.95)' },
 ];
 
@@ -40,7 +40,7 @@ interface Props {
   showLevel?: boolean;
 }
 
-/** QQ 样式群铭牌：等级越高越亮、带呼吸发光；20 级彩虹流动渐变 */
+/** QQ 样式群铭牌：7-19 级静态渐变，20 级保留原有彩虹色 */
 export const GroupBadge: React.FC<Props> = ({
   level, name, badgeId, size = 'xs', showLevel = true,
 }) => {
@@ -49,13 +49,13 @@ export const GroupBadge: React.FC<Props> = ({
   const label = name || GROUP_BADGE_NAMES[id - 1];
   const c = BADGE_STYLES[id - 1];
   const isMax = id === 20;
-  const glow = id >= 11;
 
   return (
     <span
       className={`wb-group-badge ${size === 'sm' ? 'wb-group-badge-sm' : ''}`}
       data-level={id}
-      data-glow={glow ? '1' : '0'}
+      data-static-gradient={id >= 7 && id < 20 ? '1' : '0'}
+      data-badge-finish={id >= 17 && id < 20 ? 'gem' : id >= 13 && id < 17 ? 'metal' : undefined}
       title={`群等级 Lv.${lv} · ${label}${isMax ? '（满级渐变铭牌）' : ''}`}
       style={{
         background: isMax ? undefined : `linear-gradient(135deg, ${c.from}, ${c.to})`,

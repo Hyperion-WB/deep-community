@@ -10,27 +10,25 @@
  * - 只有一个全局 keydown 监听，且只调用栈顶覆盖层的 handler。
  */
 
-type EscEntry = { id: string; handler: () => void };
+type EscEntry = { id: string; handler: () => void; priority: number };
 
 let lockCount = 0;
 let savedOverflow = '';
 const escStack: EscEntry[] = [];
-let keyListenerAdded = false;
+
+const getTopEntry = () => escStack.reduce<EscEntry | undefined>(
+  (top, entry) => !top || entry.priority >= top.priority ? entry : top,
+  undefined,
+);
 
 const onGlobalKeyDown = (event: KeyboardEvent) => {
-  if (event.key !== 'Escape') return;
-  const top = escStack[escStack.length - 1];
+  if (event.key !== 'Escape' || event.defaultPrevented || event.isComposing) return;
+  const top = getTopEntry();
   if (!top) return;
   event.preventDefault();
   event.stopPropagation();
-  top.handler();
+  if (!event.repeat) top.handler();
 };
-
-function ensureKeyListener() {
-  if (keyListenerAdded) return;
-  document.addEventListener('keydown', onGlobalKeyDown, true);
-  keyListenerAdded = true;
-}
 
 /** 占用一次背景滚动锁，返回释放函数（必须成对调用）。 */
 export function acquireScrollLock(): () => void {
@@ -50,18 +48,20 @@ export function acquireScrollLock(): () => void {
   };
 }
 
-/** 注册一个 ESC 处理器；只有最后注册的（栈顶）会响应。 */
-export function registerEsc(id: string, handler: () => void): () => void {
-  ensureKeyListener();
-  const entry: EscEntry = { id, handler };
+/** 按覆盖层的 z-index 排序；同层时最后打开的优先。 */
+export function registerEsc(id: string, handler: () => void, priority = 100): () => void {
+  if (escStack.length === 0) document.addEventListener('keydown', onGlobalKeyDown, true);
+  const entry: EscEntry = { id, handler, priority };
   escStack.push(entry);
   return () => {
-    const idx = escStack.findIndex((e) => e.id === id);
-    if (idx !== -1) escStack.splice(idx, 1);
+    const idx = escStack.indexOf(entry);
+    if (idx === -1) return;
+    escStack.splice(idx, 1);
+    if (escStack.length === 0) document.removeEventListener('keydown', onGlobalKeyDown, true);
   };
 }
 
-/** 覆盖层是否处于栈顶（供仍保留自有监听的旧组件过渡使用）。 */
+/** 覆盖层是否位于栈顶（供焦点和其他快捷键使用）。 */
 export function isTopOverlay(id: string): boolean {
-  return escStack.length > 0 && escStack[escStack.length - 1].id === id;
+  return getTopEntry()?.id === id;
 }

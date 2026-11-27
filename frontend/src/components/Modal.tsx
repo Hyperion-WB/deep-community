@@ -1,7 +1,8 @@
 import React, { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { acquireScrollLock, registerEsc } from '../utils/overlay';
+import { useOverlayEscape } from '../hooks/useDialogA11y';
+import { acquireScrollLock, isTopOverlay } from '../utils/overlay';
 
 interface ModalProps {
   open: boolean;
@@ -31,17 +32,16 @@ export const Modal: React.FC<ModalProps> = ({
   labelledBy,
   zIndex = 120,
 }) => {
-  const overlayId = React.useId();
+  const overlayId = useOverlayEscape(open, onClose, zIndex);
   const cardRef = useRef<HTMLDivElement | null>(null);
-  const lastActiveRef = useRef<Element | null>(null);
 
   useEffect(() => {
     if (!open) return;
-    lastActiveRef.current = document.activeElement;
+    const previouslyFocused = document.activeElement as HTMLElement | null;
 
     // ESC 统一交给全局覆盖层栈，避免一次按键关掉多个叠加层
     const handleKey = (event: KeyboardEvent) => {
-      if (event.key !== 'Tab') return;
+      if (event.key !== 'Tab' || !isTopOverlay(overlayId)) return;
       const root = cardRef.current;
       if (!root) return;
       const focusables = root.querySelectorAll<HTMLElement>(
@@ -61,9 +61,9 @@ export const Modal: React.FC<ModalProps> = ({
 
     document.addEventListener('keydown', handleKey, true);
     const releaseLock = acquireScrollLock();
-    const unregisterEsc = registerEsc(overlayId, onClose);
     // 焦点移入弹窗，避免键盘用户还停留在背后页面
-    window.setTimeout(() => {
+    const focusTimer = window.setTimeout(() => {
+      if (!isTopOverlay(overlayId)) return;
       const root = cardRef.current;
       const target = root?.querySelector<HTMLElement>(
         'button:not([disabled]), input, textarea, select, a[href]'
@@ -73,11 +73,13 @@ export const Modal: React.FC<ModalProps> = ({
 
     return () => {
       document.removeEventListener('keydown', handleKey, true);
-      unregisterEsc();
+      window.clearTimeout(focusTimer);
       releaseLock();
-      (lastActiveRef.current as HTMLElement | null)?.focus?.();
+      if (cardRef.current?.contains(document.activeElement) || document.activeElement === document.body) {
+        previouslyFocused?.focus();
+      }
     };
-  }, [open, onClose, overlayId]);
+  }, [open, overlayId]);
 
   return createPortal(
     <AnimatePresence>

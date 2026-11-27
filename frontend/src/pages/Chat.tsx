@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { AvatarPreview } from '../components/AvatarPreview';
-import { Send, Search, RotateCcw, MessageSquare, Smile, ImagePlus, Loader2, Maximize2, Minimize2, MoreVertical, Trash2, Ban, User, X, ShieldAlert, ArrowLeft, Pin, BellOff, Bell, Users, Plus, Sparkles, UserPlus, UserMinus, LogOut, Crown, Shield, Globe, Lock, ShieldCheck, Megaphone, Edit3, AtSign, Reply, Check, Clock, FileText, CheckCircle2, Layers, ArrowUp, ArrowDown, History, BellRing, Wrench, Dices, ListOrdered, Feather, CalendarCheck, Timer, Medal, BarChart3, Terminal, PanelLeftClose, PanelLeftOpen, Utensils } from 'lucide-react';
+import { Send, Search, RotateCcw, MessageSquare, Smile, ImagePlus, Loader2, Maximize2, Minimize2, MoreVertical, Trash2, Ban, User, X, ShieldAlert, ArrowLeft, Pin, BellOff, Bell, Users, Plus, Sparkles, UserPlus, UserMinus, LogOut, Crown, Shield, Globe, Lock, ShieldCheck, Megaphone, Edit3, AtSign, Reply, Check, Clock, FileText, CheckCircle2, Layers, ArrowUp, ArrowDown, History, BellRing, Wrench, Dices, ListOrdered, Feather, CalendarCheck, Timer, Medal, BarChart3, Terminal, PanelLeftClose, PanelLeftOpen, Utensils, Pencil } from 'lucide-react';
 import { apiClient, refreshAccessToken, UPLOAD_TIMEOUT } from '../api/client';
 import { GroupBadge, GROUP_BADGE_NAMES } from '../components/GroupBadge';
 import { DiceCube } from '../components/minigames/DiceCube';
@@ -357,7 +357,7 @@ export const Chat: React.FC<Props> = ({
   );
   const [showCheckinConfig, setShowCheckinConfig] = useState(false);
   // 成语接龙 / 每日求签 / 群投票
-  const [activityKind, setActivityKind] = useState<'chain' | 'poll' | 'feihua' | null>(null);
+  const [activityKind, setActivityKind] = useState<'chain' | 'poll' | 'feihua' | 'draw' | null>(null);
   // 接龙进度信号：别人答题时后端会推 chain_update，面板据此立刻刷新读音
   const [chainTick, setChainTick] = useState(0);
   // 飞花令进度信号：feihua_update 推送后让面板重拉诗句流与榜单
@@ -2931,6 +2931,9 @@ export const Chat: React.FC<Props> = ({
       void apiClient.post(`/chat/groups/${activeGroupId}/dice`)
         .then((res) => reportGroupExp(toast, res.data))
         .catch((err: any) => toast.error(err?.response?.data?.detail || '掷骰子失败'));
+    } },
+    { key: 'draw', label: '你画我猜', hint: '群内限时猜词', icon: Pencil, run: () => {
+      setShowToolbox(false); setActivityKind('draw');
     } },
     { key: 'lunch', label: '今天吃什么', hint: '午餐转盘 · 群共享菜盘', icon: Utensils, run: () => {
       setShowToolbox(false); setShowLunchWheel(true);

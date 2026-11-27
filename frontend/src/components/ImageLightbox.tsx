@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronLeft, ChevronRight, Minus, Plus, RotateCcw, X, Download, Loader2, Check, Locate } from 'lucide-react';
-import { acquireScrollLock, registerEsc } from '../utils/overlay';
+import { useOverlayEscape } from '../hooks/useDialogA11y';
+import { acquireScrollLock, isTopOverlay } from '../utils/overlay';
 import { cdnUrl, getCompatibleImageSource } from '../utils/cdn';
 import { downloadImageAs, SAVE_FORMAT_OPTIONS } from '../utils/imageDownload';
 import type { SaveFormat } from '../utils/imageDownload';
@@ -98,40 +99,40 @@ export const ImageLightbox: React.FC<Props> = ({
     if (scale <= 1.01 && (offset.x !== 0 || offset.y !== 0)) setOffset({ x: 0, y: 0 });
   }, [scale, offset.x, offset.y]);
 
-  // 打开时锁背景滚动 + 注册 ESC（都由全局栈协调，嵌套时不互相踩）
+  const open = Boolean(src);
+  const overlayId = useOverlayEscape(open, () => {
+    if (saveMenuOpen) setSaveMenuOpen(false);
+    else onClose();
+  }, 200);
+
   useEffect(() => {
-    if (!src) return;
-    const releaseLock = acquireScrollLock();
-    const unregisterEsc = registerEsc('image-lightbox', onClose);
-    return () => {
-      unregisterEsc();
-      releaseLock();
-    };
-  }, [src, onClose]);
+    if (open) return acquireScrollLock();
+  }, [open]);
 
   // 键盘：ESC 关闭、左右切换
   useEffect(() => {
-    if (!src) return;
+    if (!open || (!onPrev && !onNext)) return;
     const onKey = (e: KeyboardEvent) => {
-      // ESC 由全局栈处理，这里只负责左右切图
+      if (!isTopOverlay(overlayId) || e.defaultPrevented) return;
       if (e.key === 'ArrowLeft') onPrev?.();
       if (e.key === 'ArrowRight') onNext?.();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [src, onClose, onPrev, onNext]);
+  }, [open, overlayId, onPrev, onNext]);
 
   // 滚轮缩放：passive:false 才能阻止页面跟着滚
   useEffect(() => {
-    if (!src) return;
+    if (!open) return;
     const onWheel = (e: WheelEvent) => {
+      if (!isTopOverlay(overlayId)) return;
       e.preventDefault();
       const step = e.deltaMode === 1 ? 0.08 : 0.0016;
       setScale((s) => Math.min(MAX_SCALE, Math.max(MIN_SCALE, s - e.deltaY * step)));
     };
     window.addEventListener('wheel', onWheel, { passive: false });
     return () => window.removeEventListener('wheel', onWheel);
-  }, [src]);
+  }, [open, overlayId]);
 
   if (!src) return null;
 

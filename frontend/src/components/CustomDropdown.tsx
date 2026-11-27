@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useId } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronDown, Check } from 'lucide-react';
@@ -24,6 +24,8 @@ interface Props {
   className?: string;
   /** 追加到触发按钮上的类（写在默认样式之后，可用于局部配色/尺寸覆写） */
   triggerClassName?: string;
+  ariaLabel?: string;
+  preserveMouseFocus?: boolean;
 }
 
 const MENU_MAX_HEIGHT = 280;
@@ -42,7 +44,11 @@ export const CustomDropdown: React.FC<Props> = ({
   menuWidth,
   className = '',
   triggerClassName = '',
+  ariaLabel,
+  preserveMouseFocus = false,
 }) => {
+  const menuId = useId();
+  const focusOnOpen = useRef(false);
   const [open, setOpen] = useState(false);
   const [menuStyle, setMenuStyle] = useState<{
     left: number;
@@ -123,6 +129,13 @@ export const CustomDropdown: React.FC<Props> = ({
     return () => document.removeEventListener('keydown', onKey);
   }, [open]);
 
+  useEffect(() => {
+    if (!open || !menuStyle || !focusOnOpen.current || !menuRef.current) return;
+    focusOnOpen.current = false;
+    const menu = menuRef.current;
+    (menu.querySelector<HTMLElement>('[aria-selected="true"]') ?? menu.querySelector<HTMLElement>('[role="option"]'))?.focus();
+  }, [open, menuStyle]);
+
   const triggerSizeClasses = {
     xs: 'h-7 px-2.5 rounded-capsule text-2xs gap-1.5',
     sm: 'h-8 px-3 rounded-capsule text-xs gap-2',
@@ -151,9 +164,32 @@ export const CustomDropdown: React.FC<Props> = ({
         ref={triggerRef}
         type="button"
         disabled={disabled}
+        aria-label={ariaLabel || label ? `${ariaLabel || label}：${selectedOption?.label ?? placeholder}` : undefined}
         aria-haspopup="listbox"
         aria-expanded={open}
-        onClick={() => setOpen((prev) => !prev)}
+        aria-controls={open ? menuId : undefined}
+        onMouseDown={(event) => { if (preserveMouseFocus && event.button === 0) event.preventDefault(); }}
+        onClick={(event) => {
+          focusOnOpen.current = event.detail === 0;
+          setOpen(!open);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === 'Tab') setOpen(false);
+          if (open && event.key === 'Escape') {
+            event.preventDefault();
+            event.stopPropagation();
+            setOpen(false);
+          }
+          if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+          event.preventDefault();
+          if (open) {
+            const menu = menuRef.current;
+            (menu?.querySelector<HTMLElement>('[aria-selected="true"]') ?? menu?.querySelector<HTMLElement>('[role="option"]'))?.focus();
+          } else {
+            focusOnOpen.current = true;
+            setOpen(true);
+          }
+        }}
         className={`flex items-center justify-between border text-left transition-all wb-pressable ${triggerSizeClasses} ${
           open
             ? 'bg-wb-bg-surface border-wb-text-primary shadow-sm'
@@ -184,7 +220,27 @@ export const CustomDropdown: React.FC<Props> = ({
           {open && menuStyle && (
             <motion.div
               ref={menuRef}
+              id={menuId}
               role="listbox"
+              aria-label={ariaLabel || label || placeholder}
+              onKeyDown={(event) => {
+                if (event.key === 'Escape' || event.key === 'Tab') {
+                  triggerRef.current?.focus();
+                  setOpen(false);
+                  if (event.key === 'Escape') {
+                    event.preventDefault();
+                    event.stopPropagation();
+                  }
+                  return;
+                }
+                if (!['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return;
+                event.preventDefault();
+                const items = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('[role="option"]'));
+                const index = items.indexOf(document.activeElement as HTMLElement);
+                const next = event.key === 'Home' ? 0 : event.key === 'End' ? items.length - 1 :
+                  Math.max(0, Math.min(items.length - 1, index + (event.key === 'ArrowDown' ? 1 : -1)));
+                items[next]?.focus();
+              }}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -209,12 +265,15 @@ export const CustomDropdown: React.FC<Props> = ({
                     key={opt.value}
                     type="button"
                     role="option"
+                    tabIndex={-1}
                     aria-selected={isSelected}
-                    onClick={() => {
+                    onMouseDown={(event) => { if (preserveMouseFocus && event.button === 0) event.preventDefault(); }}
+                    onClick={(event) => {
+                      if (document.activeElement === event.currentTarget) triggerRef.current?.focus();
                       onChange(opt.value);
                       setOpen(false);
                     }}
-                    className={`w-full flex items-center justify-between transition-colors text-left ${itemSizeClasses} ${
+                    className={`w-full flex items-center justify-between transition-colors text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-wb-brand focus-visible:-outline-offset-2 ${itemSizeClasses} ${
                       isSelected
                         ? 'bg-wb-text-primary text-wb-bg-page font-semibold'
                         : 'text-wb-text-primary hover:bg-wb-bg-subtle'

@@ -54,6 +54,7 @@ import type { UserProfile, PostSimple, BlockedUserItem } from '../types';
 import { MyReports } from '../components/MyReports';
 import { LevelBadge } from '../components/LevelBadge';
 import { SegmentedControl } from '../components/SegmentedControl';
+import { CustomDropdown } from '../components/CustomDropdown';
 import { UserAvatar } from '../components/UserAvatar';
 import { OnlineAvatar } from '../components/OnlineAvatar';
 import { FollowListModal } from '../components/FollowListModal';
@@ -94,6 +95,151 @@ const PRESET_AVATARS = [
   { id: 'av-5', label: '象牙白', bg: 'bg-zinc-200', text: 'text-zinc-900', symbol: '■' },
   { id: 'av-6', label: '微晶阵', bg: 'bg-zinc-100', text: 'text-zinc-800', symbol: '◈' },
 ];
+
+const PROFILE_PAGE = 'mx-auto w-full min-w-0 max-w-6xl space-y-4 px-3 py-4 sm:px-5 sm:py-5';
+const PROFILE_SURFACE = 'min-w-0 rounded-2xl border border-wb-border-subtle bg-wb-bg-surface shadow-card';
+const PROFILE_INTRO = 'flex min-w-0 flex-wrap items-start justify-between gap-x-4 gap-y-3';
+const PROFILE_IDENTITY = 'flex min-w-0 flex-[1_1_20rem] items-start gap-3';
+const PROFILE_TOOLS = 'flex min-w-0 flex-wrap items-center gap-2';
+const PROFILE_ACTION = 'wb-pressable inline-flex min-h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-capsule px-3 text-xs transition-colors';
+
+const PROFILE_TABS = [
+  { key: 'overview', label: '成长与特权' },
+  { key: 'history', label: '浏览足迹' },
+  { key: 'my_posts', label: '我的发布' },
+  { key: 'my_favorites', label: '我的收藏' },
+  { key: 'edit_profile', label: '修改资料' },
+  { key: 'security', label: '密码与安全' },
+  { key: 'privacy', label: '偏好与隐私' },
+  { key: 'my_reports', label: '我的举报' },
+] as const;
+type ProfileTab = (typeof PROFILE_TABS)[number]['key'];
+const PROFILE_TAB_ITEMS = [...PROFILE_TABS];
+const PROFILE_TAB_OPTIONS = PROFILE_TABS.map(({ key, label }) => ({ value: key, label }));
+
+const ProfileHeading = ({ onBack, isPublic = false }: { onBack?: () => void; isPublic?: boolean }) => (
+  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-wb-border-subtle px-3 py-2.5 sm:px-4">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+      <h1 className="flex items-center gap-2 text-base font-bold text-wb-text-primary">
+        <User className="h-4 w-4 shrink-0 text-wb-brand" aria-hidden="true" />
+        个人主页
+      </h1>
+      <span className="text-xs text-wb-text-muted">{isPublic ? '公开档案' : '我的档案'}</span>
+    </div>
+    {onBack && (
+      <button
+        type="button"
+        onClick={onBack}
+        className={`${PROFILE_ACTION} border border-wb-border-subtle bg-wb-bg-subtle font-medium text-wb-text-secondary hover:border-wb-border-strong hover:text-wb-text-primary`}
+      >
+        <ArrowLeft className="h-3.5 w-3.5 shrink-0" aria-hidden="true" /> 返回上一级
+      </button>
+    )}
+  </div>
+);
+
+const ProfileStats = ({ profile, posts, onOpenFollows }: {
+  profile: UserProfile;
+  posts: number;
+  onOpenFollows: (username: string, type: 'followers' | 'following') => void;
+}) => (
+  <div className="flex flex-wrap items-center gap-x-5 gap-y-1 border-t border-wb-border-subtle pt-2 text-xs">
+    {([
+      ['followers', '粉丝', profile.followers_count ?? 0],
+      ['following', '关注', profile.following_count ?? 0],
+    ] as const).map(([key, label, count]) => (
+      <button
+        key={key}
+        type="button"
+        onClick={() => onOpenFollows(profile.username, key)}
+        className="group inline-flex min-h-7 items-center gap-1.5 text-wb-text-secondary hover:text-wb-text-primary"
+      >
+        <span className="font-mono text-sm font-bold text-wb-text-primary group-hover:underline">{count}</span>
+        {label}
+      </button>
+    ))}
+    <div className="inline-flex min-h-7 items-center gap-1.5 text-wb-text-secondary">
+      <span className="font-mono text-sm font-bold text-wb-text-primary">{profile.posts_count ?? posts}</span>
+      公开发布
+    </div>
+  </div>
+);
+
+const ProfileIdentity = ({ profile, own = false, hideIpLocation = false, onPreview }: {
+  profile: UserProfile;
+  own?: boolean;
+  hideIpLocation?: boolean;
+  onPreview: (preview: { src: string; name: string }) => void;
+}) => {
+  const name = profile.nickname || profile.username;
+  const avatarUrl = profile.avatar_url;
+  const avatar = <UserAvatar username={profile.username} avatarUrl={avatarUrl} size={52} className="border border-wb-border-subtle" />;
+  const techTags = [...new Set(profile.tech_stack?.split(/[,，]/).map((tag) => tag.trim()).filter(Boolean))];
+  const linkClass = 'inline-flex items-center gap-1 rounded-capsule border border-wb-border-subtle bg-wb-bg-subtle px-2 py-1 font-mono text-2xs text-wb-text-secondary hover:border-wb-border-strong hover:text-wb-text-primary';
+
+  return (
+    <div className={PROFILE_IDENTITY}>
+      <OnlineAvatar online={own ? profile.is_online !== false : Boolean(profile.is_online)} size={52} ringClassName="ring-wb-bg-surface">
+        {avatarUrl ? (
+          <button type="button" onClick={() => onPreview({ src: avatarUrl, name })} aria-label={`查看 ${name} 的头像`} className="inline-flex cursor-zoom-in rounded-full">
+            {avatar}
+          </button>
+        ) : avatar}
+      </OnlineAvatar>
+      <div className="min-w-0 space-y-1.5">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+          <h2 className="min-w-0 text-lg font-bold leading-tight text-wb-text-primary [overflow-wrap:anywhere]">{name}</h2>
+          {profile.nickname && <span className="min-w-0 font-mono text-xs text-wb-text-muted [overflow-wrap:anywhere]">@{profile.username}</span>}
+          {(profile.gender === 'male' || profile.gender === 'female') && (
+            <span title={profile.gender === 'male' ? '男' : '女'} className={`inline-flex h-5 w-5 shrink-0 select-none items-center justify-center rounded-full border text-xs font-bold leading-none ${
+              profile.gender === 'male' ? 'border-wb-info/20 bg-wb-info/10 text-wb-info' : 'border-wb-danger/20 bg-wb-danger/10 text-wb-danger'
+            }`}>
+              {profile.gender === 'male' ? '♂' : '♀'}
+            </span>
+          )}
+          <LevelBadge level={profile.level} status={profile.status} role={profile.role} size="sm" />
+          {profile.equipped_title && (
+            <span className="inline-flex min-w-0 items-center gap-1 rounded-capsule border border-wb-border-subtle bg-wb-bg-subtle px-2 py-0.5 text-xs font-semibold text-wb-text-primary">
+              <Sparkles className="h-3 w-3 shrink-0 text-wb-warn" aria-hidden="true" />
+              <span className="min-w-0 [overflow-wrap:anywhere]">{profile.equipped_title}</span>
+            </span>
+          )}
+        </div>
+        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 font-mono text-xs text-wb-text-muted">
+          {own && profile.email && <span className="min-w-0 [overflow-wrap:anywhere]">{profile.email}</span>}
+          <span>注册于 {new Date(profile.created_at).toLocaleDateString()}</span>
+          {profile.ip_location && (
+            <span className="inline-flex min-w-0 items-center gap-1 rounded-capsule border border-wb-border-subtle bg-wb-bg-subtle px-2 py-0.5 text-2xs text-wb-text-secondary">
+              <MapPin className="h-3 w-3 shrink-0 text-wb-text-muted" aria-hidden="true" />
+              <span className="min-w-0 [overflow-wrap:anywhere]">IP 属地: {profile.ip_location}{own && hideIpLocation && <span className="text-wb-text-muted">（仅自己可见）</span>}</span>
+            </span>
+          )}
+        </div>
+        {profile.bio && <p className="text-xs leading-relaxed text-wb-text-secondary [overflow-wrap:anywhere]">{profile.bio}</p>}
+        {(profile.github_url || profile.blog_url || techTags.length > 0) && (
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5 pt-0.5">
+            {profile.github_url && (
+              <a href={profile.github_url.startsWith('http') ? profile.github_url : `https://github.com/${profile.github_url}`} target="_blank" rel="noopener noreferrer" className={linkClass}>
+                <GithubIcon className="h-3 w-3" /> GitHub
+              </a>
+            )}
+            {profile.blog_url && (
+              <a href={profile.blog_url.startsWith('http') ? profile.blog_url : `https://${profile.blog_url}`} target="_blank" rel="noopener noreferrer" className={linkClass}>
+                <Globe className="h-3 w-3" aria-hidden="true" /> 个人站点
+              </a>
+            )}
+            {techTags.length > 0 && (
+              <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                <Code2 className="h-3 w-3 shrink-0 text-wb-text-muted" aria-hidden="true" />
+                {techTags.map((tag) => <span key={tag} className="min-w-0 rounded-capsule border border-wb-border-subtle bg-wb-bg-subtle px-2 py-0.5 font-mono text-2xs text-wb-text-secondary [overflow-wrap:anywhere]">{tag}</span>)}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
 
 export const Profile: React.FC<Props> = ({
   user,
@@ -959,148 +1105,23 @@ export const Profile: React.FC<Props> = ({
     }
 
     return (
-      <div className="max-w-4xl mx-auto px-4 py-6 space-y-6 animate-fade-in">
-        {/* 顶部返回条 */}
-        {onBack && (
-          <div className="flex items-center justify-between pb-1">
-            <button
-              type="button"
-              onClick={onBack}
-              className="wb-pressable inline-flex items-center gap-1.5 text-xs text-wb-text-secondary hover:text-wb-text-primary transition-colors font-medium px-2.5 py-1.5 rounded-capsule bg-wb-bg-surface border border-wb-border-subtle"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              <span>返回上一级</span>
-            </button>
-            <span className="text-xs text-wb-text-muted font-mono">
-              极客空间档案 · @{targetProfile.username}
-            </span>
-          </div>
-        )}
-
-        {/* 头部名片卡片 */}
-        <div className="p-5 md:p-7 rounded-3xl bg-wb-bg-surface border border-wb-border-subtle shadow-card space-y-5">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <OnlineAvatar online={Boolean(targetProfile.is_online)} size={64}>
-                <div
-                  onClick={() => {
-                    if (!targetProfile.avatar_url) return;
-                    setAvatarPreview({
-                      src: targetProfile.avatar_url,
-                      name: targetProfile.nickname || targetProfile.username,
-                    });
-                  }}
-                  className={targetProfile.avatar_url ? 'cursor-zoom-in' : ''}
-                  title={targetProfile.avatar_url ? '点击查看头像' : undefined}
+      <div className={`${PROFILE_PAGE} animate-fade-in`}>
+        <header className={PROFILE_SURFACE}>
+          <ProfileHeading isPublic onBack={onBack} />
+          <div className="space-y-3 px-3 py-3 sm:px-4">
+            <div className={PROFILE_INTRO}>
+              <ProfileIdentity profile={targetProfile} onPreview={setAvatarPreview} />
+              <div className={PROFILE_TOOLS}>
+                <button
+                  type="button"
+                  onClick={handleToggleFollow}
+                  disabled={followLoading}
+                  className={`wb-pressable inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-capsule px-3 text-xs font-semibold transition-colors ${
+                    targetProfile.is_following
+                      ? 'border border-wb-border-strong bg-wb-bg-subtle text-wb-text-primary'
+                      : 'bg-wb-text-primary text-wb-bg-page shadow-sm'
+                  }`}
                 >
-                  <UserAvatar username={targetProfile.username} avatarUrl={targetProfile.avatar_url} size={64} />
-                </div>
-              </OnlineAvatar>
-              <div className="space-y-1">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h2 className="text-lg md:text-xl font-bold text-wb-text-primary">
-                    {targetProfile.nickname || targetProfile.username}
-                  </h2>
-                  {targetProfile.nickname && (
-                    <span className="text-xs text-wb-text-muted font-mono">
-                      @{targetProfile.username}
-                    </span>
-                  )}
-                  {targetProfile.gender && (targetProfile.gender === 'male' || targetProfile.gender === 'female') && (
-                    <span
-                      title={targetProfile.gender === 'male' ? '男' : '女'}
-                      className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-xs font-bold leading-none select-none ${
-                        targetProfile.gender === 'male'
-                          ? 'text-wb-info bg-wb-info/10 border border-wb-info/20'
-                          : 'text-wb-danger bg-wb-danger/10 border border-wb-danger/20'
-                      }`}
-                    >
-                      {targetProfile.gender === 'male' ? '♂' : '♀'}
-                    </span>
-                  )}
-                  <LevelBadge level={targetProfile.level} status={targetProfile.status} role={targetProfile.role} size="md" />
-                  {targetProfile.equipped_title && (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-capsule bg-wb-text-primary text-wb-bg-page font-bold text-xs shadow-xs">
-                      <Sparkles className="w-3 h-3 text-wb-warn" />
-                      <span>{targetProfile.equipped_title}</span>
-                    </span>
-                  )}
-                </div>
-
-                {/* 元信息行: 注册时间与 IP 属地 */}
-                <div className="flex items-center gap-3 text-xs text-wb-text-muted font-mono flex-wrap">
-                  <span>注册于 {new Date(targetProfile.created_at).toLocaleDateString()}</span>
-                  {targetProfile.ip_location && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-capsule bg-wb-bg-subtle border border-wb-border-subtle text-2xs text-wb-text-secondary">
-                      <MapPin className="w-3 h-3 text-wb-text-muted" />
-                      <span>IP 属地: {targetProfile.ip_location}</span>
-                    </span>
-                  )}
-                </div>
-
-                {targetProfile.bio && (
-                  <p className="text-xs text-wb-text-secondary pt-0.5">
-                    {targetProfile.bio}
-                  </p>
-                )}
-
-                {/* 社交/个人主页外链 */}
-                {(targetProfile.github_url || targetProfile.blog_url) && (
-                  <div className="flex items-center gap-2.5 pt-1 flex-wrap">
-                    {targetProfile.github_url && (
-                      <a
-                        href={targetProfile.github_url.startsWith('http') ? targetProfile.github_url : `https://github.com/${targetProfile.github_url}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-2xs text-wb-text-secondary hover:text-wb-text-primary transition-colors bg-wb-bg-subtle px-2.5 py-1 rounded-capsule border border-wb-border-subtle hover:border-wb-border-strong font-mono"
-                      >
-                        <GithubIcon className="w-3 h-3" />
-                        <span>GitHub</span>
-                      </a>
-                    )}
-                    {targetProfile.blog_url && (
-                      <a
-                        href={targetProfile.blog_url.startsWith('http') ? targetProfile.blog_url : `https://${targetProfile.blog_url}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-2xs text-wb-text-secondary hover:text-wb-text-primary transition-colors bg-wb-bg-subtle px-2.5 py-1 rounded-capsule border border-wb-border-subtle hover:border-wb-border-strong font-mono"
-                      >
-                        <Globe className="w-3 h-3" />
-                        <span>个人站点</span>
-                      </a>
-                    )}
-                  </div>
-                )}
-
-                {/* 技术栈标签阵列 */}
-                {targetProfile.tech_stack && (
-                  <div className="flex items-center gap-1.5 flex-wrap pt-1.5">
-                    <Code2 className="w-3 h-3 text-wb-text-muted shrink-0" />
-                    {targetProfile.tech_stack.split(/[,，]/).map((t) => t.trim()).filter(Boolean).map((tag) => (
-                      <span
-                        key={tag}
-                        className="text-3xs font-mono px-2 py-0.5 rounded-capsule bg-wb-bg-subtle text-wb-text-secondary border border-wb-border-subtle font-medium"
-                      >
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* 右侧操作区：[关注 / 发私信 / 拉黑] */}
-            <div className="flex items-center gap-2 flex-wrap shrink-0 self-start sm:self-center">
-              <button
-                type="button"
-                onClick={handleToggleFollow}
-                disabled={followLoading}
-                className={`wb-pressable inline-flex items-center gap-1.5 h-10 px-5 rounded-capsule text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
-                  targetProfile.is_following
-                    ? 'bg-wb-bg-subtle border border-wb-border-strong text-wb-text-primary'
-                    : 'bg-wb-text-primary text-wb-bg-page shadow-sm'
-                }`}
-              >
                 {targetProfile.is_following ? (
                   <>
                     <UserCheck className="w-3.5 h-3.5 shrink-0" />
@@ -1124,7 +1145,7 @@ export const Profile: React.FC<Props> = ({
                     }
                     onStartChat(targetProfile.id, targetProfile.username);
                   }}
-                  className="wb-pressable inline-flex items-center gap-1.5 h-10 px-4 rounded-capsule bg-wb-bg-subtle border border-wb-border-subtle hover:border-wb-border-strong text-wb-text-primary text-xs font-medium transition-colors whitespace-nowrap shrink-0"
+                  className={`${PROFILE_ACTION} border border-wb-border-subtle bg-wb-bg-subtle font-medium text-wb-text-primary hover:border-wb-border-strong`}
                 >
                   <MessageSquare className="w-3.5 h-3.5 shrink-0" />
                   <span className="whitespace-nowrap">发私信</span>
@@ -1136,10 +1157,10 @@ export const Profile: React.FC<Props> = ({
                 onClick={handleToggleBlock}
                 disabled={blockLoading}
                 title={targetProfile.is_blocked ? '移出黑名单' : '加入黑名单'}
-                className={`wb-pressable inline-flex items-center gap-1.5 h-10 px-3.5 rounded-capsule text-xs transition-colors whitespace-nowrap shrink-0 ${
+                className={`${PROFILE_ACTION} ${
                   targetProfile.is_blocked
-                    ? 'bg-wb-danger/10 border border-wb-danger/30 text-wb-danger font-medium'
-                    : 'text-wb-text-muted hover:text-wb-danger hover:bg-wb-bg-subtle border border-wb-border-subtle'
+                    ? 'border border-wb-danger/30 bg-wb-danger/10 font-medium text-wb-danger'
+                    : 'border border-wb-border-subtle text-wb-text-muted hover:bg-wb-bg-subtle hover:text-wb-danger'
                 }`}
               >
                 {targetProfile.is_blocked ? (
@@ -1154,42 +1175,14 @@ export const Profile: React.FC<Props> = ({
                   </>
                 )}
               </button>
+              </div>
             </div>
+            <ProfileStats profile={targetProfile} posts={targetPosts.length} onOpenFollows={handleOpenFollowModal} />
           </div>
-
-          {/* 统计指标行 */}
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 pt-3 border-t border-wb-border-subtle text-xs">
-            <button
-              type="button"
-              onClick={() => handleOpenFollowModal(targetProfile.username, 'followers')}
-              className="flex items-center gap-1.5 hover:opacity-80 transition-opacity cursor-pointer group"
-            >
-              <span className="font-bold font-mono text-sm text-wb-text-primary group-hover:underline">
-                {targetProfile.followers_count || 0}
-              </span>
-              <span className="text-wb-text-muted">位关注者 (粉丝)</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => handleOpenFollowModal(targetProfile.username, 'following')}
-              className="flex items-center gap-1.5 hover:opacity-80 transition-opacity cursor-pointer group"
-            >
-              <span className="font-bold font-mono text-sm text-wb-text-primary group-hover:underline">
-                {targetProfile.following_count || 0}
-              </span>
-              <span className="text-wb-text-muted">正在关注</span>
-            </button>
-            <div className="flex items-center gap-1.5">
-              <span className="font-bold font-mono text-sm text-wb-text-primary">
-                {targetProfile.posts_count ?? targetPosts.length}
-              </span>
-              <span className="text-wb-text-muted">篇公开发布</span>
-            </div>
-          </div>
-        </div>
+        </header>
 
         {/* 动态内容或隐私防护 */}
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           {targetProfile.is_blocked_by ? (
             <div className="p-12 rounded-3xl bg-wb-bg-surface border border-wb-border-subtle text-center space-y-3">
               <ShieldAlert className="w-10 h-10 text-wb-text-muted mx-auto stroke-1" />
@@ -1314,186 +1307,43 @@ export const Profile: React.FC<Props> = ({
   const progressPercent = Math.min(100, Math.max(0, Math.round(((user.experience - prevLevelExp) / (nextLevelExp - prevLevelExp)) * 100)));
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-6 space-y-6 animate-fade-in">
-      {/* 头部个人名片卡片 */}
-      <div className="p-5 md:p-7 rounded-3xl bg-wb-bg-surface border border-wb-border-subtle shadow-card space-y-5">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <OnlineAvatar online={user.is_online !== false} size={64}>
-              <div
-                onClick={() => {
-                  if (!user.avatar_url) return;
-                  setAvatarPreview({
-                    src: user.avatar_url,
-                    name: user.nickname || user.username,
-                  });
-                }}
-                className={user.avatar_url ? 'cursor-zoom-in' : ''}
-                title={user.avatar_url ? '点击查看头像' : undefined}
+    <div className={`${PROFILE_PAGE} animate-fade-in`}>
+      <header className={PROFILE_SURFACE}>
+        <ProfileHeading />
+        <div className="space-y-3 px-3 py-3 sm:px-4">
+          <div className={PROFILE_INTRO}>
+            <ProfileIdentity profile={user} own hideIpLocation={hideIpLocation} onPreview={setAvatarPreview} />
+            <div className={PROFILE_TOOLS}>
+              <button
+                type="button"
+                onClick={handleCheckin}
+                disabled={hasCheckedInToday || checking}
+                className={`wb-pressable inline-flex h-9 shrink-0 select-none items-center gap-1.5 whitespace-nowrap rounded-capsule px-3 text-xs font-semibold shadow-sm transition-all ${
+                  hasCheckedInToday
+                    ? 'border border-wb-border-subtle bg-wb-bg-subtle text-wb-text-muted opacity-85 cursor-default'
+                    : 'bg-wb-text-primary text-wb-bg-page hover:opacity-90 disabled:opacity-50 cursor-pointer'
+                }`}
               >
-                <UserAvatar
-                  username={user.username}
-                  avatarUrl={user.avatar_url}
-                  size={64}
-                  className="border border-wb-border-strong shadow-md flex-shrink-0"
-                />
-              </div>
-            </OnlineAvatar>
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="text-lg md:text-xl font-bold text-wb-text-primary">
-                  {user.nickname || user.username}
-                </h2>
-                {user.nickname && (
-                  <span className="text-xs text-wb-text-muted font-mono">
-                    @{user.username}
-                  </span>
+                {hasCheckedInToday ? (
+                  <>
+                    <Check className="h-3.5 w-3.5 shrink-0 text-wb-success" />
+                    <span className="whitespace-nowrap">今日已打卡</span>
+                  </>
+                ) : (
+                  <>
+                    <Calendar className="h-3.5 w-3.5 shrink-0" />
+                    <span className="whitespace-nowrap">{checking ? '打卡中...' : '每日打卡 (+5 EXP)'}</span>
+                  </>
                 )}
-                {user.gender && (user.gender === 'male' || user.gender === 'female') && (
-                  <span
-                    title={user.gender === 'male' ? '男' : '女'}
-                    className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-xs font-bold leading-none select-none ${
-                      user.gender === 'male'
-                        ? 'text-wb-info bg-wb-info/10 border border-wb-info/20'
-                        : 'text-wb-danger bg-wb-danger/10 border border-wb-danger/20'
-                    }`}
-                  >
-                    {user.gender === 'male' ? '♂' : '♀'}
-                  </span>
-                )}
-                <LevelBadge level={user.level} status={user.status} role={user.role} size="md" />
-                {user.equipped_title && (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-capsule bg-wb-text-primary text-wb-bg-page font-bold text-xs shadow-xs">
-                    <Sparkles className="w-3 h-3 text-wb-warn" />
-                    <span>{user.equipped_title}</span>
-                  </span>
-                )}
-              </div>
-
-              {/* 元信息行: 邮箱、注册时间与 IP 属地 */}
-              <div className="flex items-center gap-3 text-xs text-wb-text-muted font-mono flex-wrap">
-                <span>{user.email}</span>
-                <span>注册于 {new Date(user.created_at).toLocaleDateString()}</span>
-                {user.ip_location && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-capsule bg-wb-bg-subtle border border-wb-border-subtle text-2xs text-wb-text-secondary">
-                    <MapPin className="w-3 h-3 text-wb-text-muted" />
-                    <span>IP 属地: {user.ip_location}</span>
-                    {hideIpLocation && (
-                      <span className="text-wb-text-muted">（仅自己可见）</span>
-                    )}
-                  </span>
-                )}
-              </div>
-
-              {user.bio && (
-                <p className="text-xs text-wb-text-secondary pt-0.5">
-                  {user.bio}
-                </p>
-              )}
-
-              {/* 社交/个人主页外链 */}
-              {(user.github_url || user.blog_url) && (
-                <div className="flex items-center gap-2.5 pt-1 flex-wrap">
-                  {user.github_url && (
-                    <a
-                      href={user.github_url.startsWith('http') ? user.github_url : `https://github.com/${user.github_url}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-2xs text-wb-text-secondary hover:text-wb-text-primary transition-colors bg-wb-bg-subtle px-2.5 py-1 rounded-capsule border border-wb-border-subtle hover:border-wb-border-strong font-mono"
-                    >
-                      <GithubIcon className="w-3 h-3" />
-                      <span>GitHub</span>
-                    </a>
-                  )}
-                  {user.blog_url && (
-                    <a
-                      href={user.blog_url.startsWith('http') ? user.blog_url : `https://${user.blog_url}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-2xs text-wb-text-secondary hover:text-wb-text-primary transition-colors bg-wb-bg-subtle px-2.5 py-1 rounded-capsule border border-wb-border-subtle hover:border-wb-border-strong font-mono"
-                    >
-                      <Globe className="w-3 h-3" />
-                      <span>个人站点</span>
-                    </a>
-                  )}
-                </div>
-              )}
-
-              {/* 技术栈标签阵列 */}
-              {user.tech_stack && (
-                <div className="flex items-center gap-1.5 flex-wrap pt-1.5">
-                  <Code2 className="w-3 h-3 text-wb-text-muted shrink-0" />
-                  {user.tech_stack.split(/[,，]/).map((t) => t.trim()).filter(Boolean).map((tag) => (
-                    <span
-                      key={tag}
-                      className="text-3xs font-mono px-2 py-0.5 rounded-capsule bg-wb-bg-subtle text-wb-text-secondary border border-wb-border-subtle font-medium"
-                    >
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-              )}
+              </button>
             </div>
           </div>
-
-          {/* 签到行动按键 (本人) */}
-          <button
-            type="button"
-            onClick={handleCheckin}
-            disabled={hasCheckedInToday || checking}
-            className={`wb-pressable inline-flex items-center gap-2 h-10 px-5 rounded-capsule text-xs font-semibold shadow-sm self-start sm:self-center select-none whitespace-nowrap shrink-0 transition-all ${
-              hasCheckedInToday
-                ? 'bg-wb-bg-subtle text-wb-text-muted border border-wb-border-subtle cursor-default opacity-85'
-                : 'bg-wb-text-primary text-wb-bg-page hover:opacity-90 disabled:opacity-50 cursor-pointer'
-            }`}
-          >
-            {hasCheckedInToday ? (
-              <>
-                <Check className="w-3.5 h-3.5 shrink-0 text-wb-success" />
-                <span className="whitespace-nowrap">今日已打卡</span>
-              </>
-            ) : (
-              <>
-                <Calendar className="w-3.5 h-3.5 shrink-0" />
-                <span className="whitespace-nowrap">{checking ? '打卡中...' : '每日打卡 (+5 EXP)'}</span>
-              </>
-            )}
-          </button>
-        </div>
-
-        {/* 社交统计指标行 (粉丝数 / 关注数 / 发帖数) */}
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 pt-3 border-t border-wb-border-subtle text-xs">
-          <button
-            type="button"
-            onClick={() => handleOpenFollowModal(user.username, 'followers')}
-            className="flex items-center gap-1.5 hover:opacity-75 transition-opacity text-left cursor-pointer group"
-          >
-            <span className="font-bold font-mono text-sm text-wb-text-primary group-hover:underline">
-              {user.followers_count || 0}
-            </span>
-            <span className="text-wb-text-muted">位关注者 (粉丝)</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => handleOpenFollowModal(user.username, 'following')}
-            className="flex items-center gap-1.5 hover:opacity-75 transition-opacity text-left cursor-pointer group"
-          >
-            <span className="font-bold font-mono text-sm text-wb-text-primary group-hover:underline">
-              {user.following_count || 0}
-            </span>
-            <span className="text-wb-text-muted">正在关注</span>
-          </button>
-          <div className="flex items-center gap-1.5">
-            <span className="font-bold font-mono text-sm text-wb-text-primary">
-              {user.posts_count ?? myPosts.length}
-            </span>
-            <span className="text-wb-text-muted">篇公开发布</span>
-          </div>
+          <ProfileStats profile={user} posts={myPosts.length} onOpenFollows={handleOpenFollowModal} />
         </div>
 
         {checkinSuccess && (
-          <div className="p-3 rounded-2xl bg-wb-bg-subtle border border-wb-border-subtle text-xs text-wb-text-primary font-medium flex items-center gap-2 animate-fade-in">
-            <Check className="w-4 h-4" />
+          <div className="mx-3 mb-3 flex items-center gap-2 rounded-xl border border-wb-border-subtle bg-wb-bg-subtle px-3 py-2 text-xs font-medium text-wb-text-primary animate-fade-in sm:mx-4">
+            <Check className="h-4 w-4" />
             <span>{checkinSuccess}</span>
           </div>
         )}
@@ -1517,29 +1367,29 @@ export const Profile: React.FC<Props> = ({
             </div>
           </div>
         )}
-      </div>
+      </header>
 
-      {/* 模块切换分段控制器 (支持移动端原生平滑横向拖拽与不折行) */}
-      <div
-        className="overflow-x-auto overflow-y-hidden no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0 pb-1 flex justify-start"
-        style={{ overflowY: 'hidden', scrollbarWidth: 'none' }}
-      >
-        <SegmentedControl
-          id="profile-tabs"
-          items={[
-            { key: 'overview', label: '成长与特权' },
-            { key: 'history', label: '浏览足迹' },
-            { key: 'my_posts', label: '我的发布' },
-            { key: 'my_favorites', label: '我的收藏' },
-            { key: 'edit_profile', label: '修改资料' },
-            { key: 'security', label: '密码与安全' },
-            { key: 'privacy', label: '偏好与隐私' },
-            { key: 'my_reports', label: '我的举报' },
-          ]}
-          activeKey={activeSubTab}
-          onChange={(k) => setActiveSubTab(k as any)}
-        />
-      </div>
+      {/* 模块切换：窄屏下拉，宽屏分段 */}
+      <nav aria-label="个人主页模块" className={`${PROFILE_SURFACE} px-3 py-2 sm:px-4`}>
+        <div className="sm:hidden">
+          <CustomDropdown
+            ariaLabel="个人主页模块"
+            value={activeSubTab}
+            onChange={(value: string) => setActiveSubTab(value as ProfileTab)}
+            placeholder="选择个人主页模块"
+            options={PROFILE_TAB_OPTIONS}
+            className="w-full"
+          />
+        </div>
+        <div className="hidden min-w-0 overflow-x-auto sm:flex" style={{ overflowY: 'hidden', scrollbarWidth: 'none' }}>
+          <SegmentedControl
+            id="profile-tabs"
+            items={PROFILE_TAB_ITEMS}
+            activeKey={activeSubTab}
+            onChange={(key) => setActiveSubTab(key as ProfileTab)}
+          />
+        </div>
+      </nav>
 
       {/* 内容区域 */}
       <AnimatePresence mode="wait">
@@ -1855,8 +1705,8 @@ export const Profile: React.FC<Props> = ({
             transition={{ duration: 0.18 }}
             className="p-5 md:p-7 rounded-3xl bg-wb-bg-surface border border-wb-border-subtle shadow-card space-y-6"
           >
-            <GiteeBindCard />
-            <SeriesPanel onSelectPost={(id) => onSelectPost && onSelectPost(id)} myOnly title="我的专栏" />
+            <GiteeBindCard key={user?.id} bound={user?.gitee_bound} />
+            <SeriesPanel key={user?.id} onSelectPost={(id) => onSelectPost?.(id)} viewer={user} myOnly title="我的专栏" />
             <div className="flex items-center gap-2">
               <User className="w-4 h-4 text-wb-text-primary" />
               <h3 className="font-semibold text-sm text-wb-text-primary">

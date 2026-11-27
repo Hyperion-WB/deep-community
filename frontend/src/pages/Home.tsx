@@ -1,5 +1,6 @@
 import React, { useEffect, useLayoutEffect, useState, useMemo, useRef } from 'react';
 import { motion } from 'framer-motion';
+import { DailyNewsBar } from '../components/DailyNewsBar';
 import {
   FileText,
   UserRound,
@@ -10,7 +11,6 @@ import {
   Sparkles,
   Check,
   Pin,
-  ChevronRight,
   Search,
   X,
   Bookmark,
@@ -153,6 +153,7 @@ interface Props {
   onRequireAuth?: () => void;
   onGoWrite?: () => void;
   onGoWriteDaily?: () => void;
+  onGoHabit?: () => void;
   onGoAdmin?: () => void;
   onRefreshUser?: () => void;
   onSelectUser?: (username: string) => void;
@@ -183,6 +184,7 @@ export const Home: React.FC<Props> = ({
   onRequireAuth,
   onGoWrite,
   onGoWriteDaily,
+  onGoHabit,
   onGoAdmin,
   onRefreshUser,
   onSelectUser,
@@ -678,10 +680,11 @@ export const Home: React.FC<Props> = ({
     showToast('文章分享链接已复制到剪贴板');
   };
 
+  const q = searchQuery.trim();
+
   // 极客用户复合搜索 (Debounced)
   useEffect(() => {
     if (searchTarget === 'users') {
-      const q = searchQuery.trim();
       if (!q) {
         userSearchReqIdRef.current += 1;
         setSearchedUsers([]);
@@ -932,62 +935,8 @@ export const Home: React.FC<Props> = ({
     <div className="max-w-7xl mx-auto px-3 sm:px-4 py-3 sm:py-5 flex flex-col lg:flex-row gap-5 sm:gap-7 items-start w-full overflow-hidden">
       {/* 左侧主内容流 (占据全屏核心视觉区，拒绝侧边栏抢镜) */}
       <div className="flex-1 min-w-0 space-y-3 sm:space-y-5 w-full">
-        {/* 热门早报始终在首页置顶 (Pinned Top News Banner) */}
-        {newsPost ? (
-          <div
-            onClick={() => onSelectPost(newsPost.id)}
-            className="surface wb-pressable cursor-pointer p-4 md:p-5 rounded-3xl border border-wb-border-subtle shadow-card hover:border-wb-border-strong flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 transition-all group"
-          >
-            <div className="space-y-1.5 flex-1">
-              <div className="flex items-center gap-2">
-                <span className="inline-flex items-center gap-1 text-2xs font-semibold px-2.5 py-0.5 rounded-capsule bg-wb-text-primary text-wb-bg-page">
-                  <Sparkles className="w-3 h-3" /> 每日早报 · 置顶要闻
-                </span>
-                <span className="text-xs text-wb-text-muted font-mono">
-                  {formatEast8Date(newsPost.created_at)}
-                </span>
-              </div>
-              <h3 className="font-semibold text-sm md:text-base text-wb-text-primary group-hover:underline line-clamp-1">
-                {getSmartDailyTitle(newsPost.title, newsPost.id)}
-              </h3>
-            </div>
-            <div className="flex items-center gap-2 self-end sm:self-center">
-              {isAdmin && onGoWriteDaily && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onGoWriteDaily();
-                  }}
-                  className="wb-pressable h-7 px-2.5 rounded-capsule bg-wb-bg-subtle hover:bg-wb-border-subtle border border-wb-border-subtle text-wb-text-primary text-2xs font-semibold flex items-center gap-1 transition-colors"
-                  title="管理员专属：起草并更新今日极客日报"
-                >
-                  <Edit3 className="w-3 h-3" />
-                  <span>撰写新日报</span>
-                </button>
-              )}
-              <div className="flex items-center gap-1 text-xs font-medium text-wb-text-secondary">
-                <span>立即阅读</span>
-                <ChevronRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
-              </div>
-            </div>
-          </div>
-        ) : (
-          isAdmin && onGoWriteDaily && (
-            <div
-              onClick={onGoWriteDaily}
-              className="wb-pressable cursor-pointer p-3.5 px-4 rounded-2xl bg-wb-bg-subtle/60 border border-dashed border-wb-border-subtle hover:border-wb-border-strong flex items-center justify-between gap-3 transition-colors text-xs"
-            >
-              <div className="flex items-center gap-2 text-wb-text-primary">
-                <Sparkles className="w-4 h-4" />
-                <span className="font-medium">今日尚未发布全站极客日报，点击一键起草每日新闻</span>
-              </div>
-              <span className="font-semibold underline flex items-center gap-1">
-                <span>起草发布</span>
-                <ChevronRight className="w-3.5 h-3.5" />
-              </span>
-            </div>
-          )
+        {(newsPost || (isAdmin && onGoWriteDaily)) && (
+          <DailyNewsBar post={newsPost} onRead={onSelectPost} onWrite={isAdmin ? onGoWriteDaily : undefined} />
         )}
 
         {/* 核心流模式切换: 全部发现 vs 关注动态 */}
@@ -1502,7 +1451,11 @@ export const Home: React.FC<Props> = ({
                     {cat}
                   </button>
                 );
-              })}
+              }).flatMap((item, i) => (onGoHabit && (categories[i] === '问答广场' || (!categories.includes('问答广场') && i === 0))) ? [item, (
+                <button key="habit-link" type="button" onClick={onGoHabit} className="wb-pressable h-8 shrink-0 whitespace-nowrap rounded-capsule border border-wb-brand/20 bg-wb-brand/10 px-3.5 text-xs font-semibold text-wb-brand hover:bg-wb-brand/20">
+                  自律打卡
+                </button>
+              )] : [item])}
             </div>
             {/* 右侧渐隐：提示这一排还能横向滑动（手机常见做法） */}
             <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-wb-bg-page to-transparent sm:hidden" />
@@ -2168,7 +2121,7 @@ export const Home: React.FC<Props> = ({
 
         {/* 社区榜单：所有人（含超级管理员）都能看到 */}
         <Leaderboard onSelectUser={onSelectUser} />
-        <SeriesPanel onSelectPost={onSelectPost} />
+        <SeriesPanel onSelectPost={onSelectPost} viewer={user} />
 
         {/* 权限差异化侧边栏：仅最高管理员可见社区运行看板 */}
         {isSuperAdmin ? (

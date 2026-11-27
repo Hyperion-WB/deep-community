@@ -23,6 +23,7 @@ interface Props {
 }
 
 const DEFAULT_NOTIFICATIONS: NotificationItem[] = [];
+const INDIVIDUAL_NOTIFICATION_TYPES = new Set(['comment', 'reply', 'mention']);
 
 export const NotificationDrawer: React.FC<Props> = ({
   isOpen,
@@ -47,6 +48,8 @@ export const NotificationDrawer: React.FC<Props> = ({
   const [notifPage, setNotifPage] = useState<number>(1);
   const [hasMoreNotifs, setHasMoreNotifs] = useState<boolean>(false);
   const [loadingMoreNotifs, setLoadingMoreNotifs] = useState<boolean>(false);
+  const listRequestRef = useRef(0);
+  const previousUnreadCountRef = useRef(globalUnreadCount);
 
   // 未读红点口径统一由服务端 unread-count 决定：
   // 列表接口有条数上限，用列表自算未读会把全局数字改小，与轮询值互相打架。
@@ -65,12 +68,14 @@ export const NotificationDrawer: React.FC<Props> = ({
   const categoryParam =
     filterCategory === 'interactive' ? 'interaction' : filterCategory === 'social' ? 'follow' : filterCategory;
 
-  const fetchNotifications = async (silent: boolean = false, page: number = 1) => {
+  const fetchNotifications = async (silent: boolean = false, page: number = 1, refreshUnread = true) => {
+    const request = ++listRequestRef.current;
     if (!silent) setLoading(true);
     try {
       const res = await apiClient.get('/users/me/notifications', {
         params: { page, size: NOTIF_PAGE_SIZE, category: categoryParam },
       });
+      if (request !== listRequestRef.current) return;
       const list: NotificationItem[] = Array.isArray(res.data) ? res.data : [];
       const hasMoreHeader = res.headers?.['x-has-more'];
       setHasMoreNotifs(hasMoreHeader !== undefined ? hasMoreHeader === '1' : list.length >= NOTIF_PAGE_SIZE);
@@ -83,12 +88,12 @@ export const NotificationDrawer: React.FC<Props> = ({
           return [...prev, ...list.filter((n) => !seen.has(n.id))];
         });
       }
-      // 不 await：列表已经拿到，红点数字晚一点更新无妨，别让它拖慢首屏
-      void syncUnreadCount();
+      // 来自未读数变化的刷新不再次查询计数。
+      if (refreshUnread) void syncUnreadCount();
     } catch {
       // 接口失败保持当前通知状态
     } finally {
-      if (!silent) setLoading(false);
+      if (request === listRequestRef.current) setLoading(false);
     }
   };
 
@@ -103,13 +108,22 @@ export const NotificationDrawer: React.FC<Props> = ({
   };
 
   useEffect(() => {
+    previousUnreadCountRef.current = globalUnreadCount;
     if (!isOpen) return;
     setNotifPage(1);
-    fetchNotifications(false, 1);
-    // 未读计数由 App 统一轮询；抽屉内不再重复开定时器，避免同接口双份请求
-    return undefined;
+    void fetchNotifications(false, 1);
+    return () => { listRequestRef.current += 1; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, filterCategory]);
+  }, [isOpen, filterCategory, selfUserId]);
+
+  useEffect(() => {
+    const previous = previousUnreadCountRef.current;
+    previousUnreadCountRef.current = globalUnreadCount;
+    if (isOpen && previous !== undefined && globalUnreadCount !== undefined && globalUnreadCount > previous) {
+      void fetchNotifications(true, 1, false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, globalUnreadCount]);
 
   // onClose 通常是内联箭头函数，用 ref 固定引用，避免副作用反复重绑
   const onCloseRef = useRef(onClose);
@@ -133,7 +147,7 @@ export const NotificationDrawer: React.FC<Props> = ({
   // 标记后重拉列表，让 group_total / group_items / is_read 保持同一份快照
   const markNotificationRead = async (item: any) => {
     const groupSize = item.group_total || item._groupCount || 0;
-    const isGroup = groupSize > 1 && item.target_id;
+    const isGroup = !INDIVIDUAL_NOTIFICATION_TYPES.has(item.action_type) && groupSize > 1 && item.target_id;
     try {
       if (isGroup) {
         await apiClient.put('/users/me/notifications/read-group', {
@@ -280,6 +294,10 @@ export const NotificationDrawer: React.FC<Props> = ({
     const out: AggItem[] = [];
     const keyOf = (n: NotificationItem) => `${n.action_type}:${n.target_id || ''}`;
     for (const n of notifications) {
+      if (INDIVIDUAL_NOTIFICATION_TYPES.has(n.action_type)) {
+        out.push(n);
+        continue;
+      }
       const prev = out[out.length - 1];
       if (prev && !prev.is_read && !n.is_read && keyOf(prev) === keyOf(n) && prev._groupCount) {
         prev._groupCount += 1;
@@ -475,6 +493,7 @@ export const NotificationDrawer: React.FC<Props> = ({
                               {item.brief}
                             </p>
                             {(() => {
+                              if (INDIVIDUAL_NOTIFICATION_TYPES.has(item.action_type)) return null;
                               const count = (item as any).group_total || (item as any)._groupCount || 0;
                               if (count <= 1) return null;
                               const gkey = `${item.action_type}:${(item as any).target_id || ''}`;

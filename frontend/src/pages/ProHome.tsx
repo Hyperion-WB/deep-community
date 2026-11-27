@@ -1,4 +1,5 @@
-import React, { useEffect, useState, useRef, useMemo } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
+import { DailyNewsBar } from '../components/DailyNewsBar';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   FileText,
@@ -14,7 +15,6 @@ import {
   Calendar,
   Layout,
   List,
-  ArrowDownUp,
 } from 'lucide-react';
 import { apiClient } from '../api/client';
 import { Leaderboard } from '../components/Leaderboard';
@@ -40,6 +40,7 @@ export interface ProHomeProps {
   onGoLegal?: () => void;
   onOpenLinks?: () => void;
   onGoWriteDaily?: () => void;
+  onGoHabit?: () => void;
   onGoFeedback?: () => void;
   isActive?: boolean;
 }
@@ -66,6 +67,7 @@ export const ProHome: React.FC<ProHomeProps> = ({
   onGoLegal,
   onOpenLinks,
   onGoWriteDaily,
+  onGoHabit,
   onGoFeedback,
   isActive = true,
 }) => {
@@ -93,13 +95,6 @@ export const ProHome: React.FC<ProHomeProps> = ({
     }
   });
 
-  // 摸鱼老板键
-  // 与经典版对齐：倒序 / 正序 / 拖拽自定义排序 + 全站搜索
-  const [feedOrder, setFeedOrder] = useState<'desc' | 'asc' | 'custom'>('desc');
-  const [customOrder, setCustomOrder] = useState<string[]>(() => {
-    try { return JSON.parse(localStorage.getItem('wb_pro_feed_order') || '[]'); } catch { return []; }
-  });
-  const [dragPostId, setDragPostId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState(() => {
     try { return localStorage.getItem('wb_pro_search') || ''; } catch { return ''; }
   });
@@ -230,8 +225,7 @@ export const ProHome: React.FC<ProHomeProps> = ({
       const isFollowing = streamTab === 'following' && Boolean(user);
       const params: Record<string, any> = { page, size: pageSize };
       if (!isFollowing) {
-        params.sort_by = feedOrder === 'asc' ? 'oldest'
-          : (filter === 'discuss' ? 'comments' : filter);
+        params.sort_by = filter === 'discuss' ? 'comments' : filter;
         if (selectedCategory !== '全部') params.category = selectedCategory;
         if (searchQuery.trim()) params.q = searchQuery.trim();
       }
@@ -277,7 +271,7 @@ export const ProHome: React.FC<ProHomeProps> = ({
     setCurrentPage(1);
     void fetchPosts(1, false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedCategory, filter, streamTab, feedOrder, searchQuery, infinite]);
+  }, [selectedCategory, filter, streamTab, searchQuery, infinite]);
 
   // 触底无限滚动
   useEffect(() => {
@@ -295,32 +289,6 @@ export const ProHome: React.FC<ProHomeProps> = ({
     if (bottomSentinelRef.current) observer.observe(bottomSentinelRef.current);
     return () => observer.disconnect();
   }, [infinite, hasMore, loadingMore, isFetchingPosts, currentPage]);
-
-  // 自定义拖拽顺序：只在本设备保存，不影响服务端排序
-  const displayPosts = useMemo(() => {
-    if (feedOrder !== 'custom' || customOrder.length === 0) return posts;
-    const pos = new Map(customOrder.map((id, i) => [id, i]));
-    return [...posts].sort((a, b) =>
-      (pos.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (pos.get(b.id) ?? Number.MAX_SAFE_INTEGER));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [posts, feedOrder, customOrder]);
-
-  const dropFeedPost = (targetId: string) => {
-    if (!dragPostId || dragPostId === targetId) { setDragPostId(null); return; }
-    setPosts((prev) => {
-      const ids = prev.map((x) => x.id);
-      const from = ids.indexOf(dragPostId), to = ids.indexOf(targetId);
-      if (from < 0 || to < 0) return prev;
-      const next = [...prev];
-      const [moved] = next.splice(from, 1);
-      next.splice(to, 0, moved);
-      const order = next.map((x) => x.id);
-      setCustomOrder(order);
-      try { localStorage.setItem('wb_pro_feed_order', JSON.stringify(order)); } catch { /* 忽略 */ }
-      return next;
-    });
-    setDragPostId(null);
-  };
 
   // 分页 / 无限流：单个按钮点击切换（不再是两段开关）
   const toggleInfinite = () => {
@@ -428,7 +396,11 @@ export const ProHome: React.FC<ProHomeProps> = ({
                 {isActive && <ChevronRight className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
               </button>
             );
-          })}
+          }).flatMap((item, i) => (onGoHabit && (categories[i] === '问答广场' || (!categories.includes('问答广场') && i === 0))) ? [item, (
+            <button key="habit-link" type="button" onClick={onGoHabit} className="flex min-h-9 w-full items-center justify-between rounded-lg px-3 text-left text-xs font-semibold text-wb-brand hover:bg-wb-brand/10">
+              自律打卡 <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
+          )] : [item])}
         </section>
 
         <section className="space-y-2 rounded-2xl border border-wb-border-subtle bg-wb-bg-surface p-3">
@@ -511,31 +483,7 @@ export const ProHome: React.FC<ProHomeProps> = ({
           )}
         </header>
 
-        <section className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-2xl border border-wb-brand/20 bg-wb-bg-surface p-3 sm:p-4">
-          <div className="flex min-w-0 flex-1 basis-44 items-center gap-3">
-            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-wb-brand/10 text-wb-brand">
-              <FileText className="h-4 w-4" aria-hidden="true" />
-            </div>
-            <div className="min-w-0">
-              <h2 className="text-xs font-semibold text-wb-brand">每日早报</h2>
-              <p className="mt-0.5 break-words text-sm font-semibold text-wb-text-primary">{newsPost?.title || '今日暂无早报'}</p>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1">
-            {newsPost?.created_at && (
-              <time dateTime={newsPost.created_at} className="hidden text-xs tabular-nums text-wb-text-muted lg:inline">{formatEast8Date(newsPost.created_at)}</time>
-            )}
-            {isAdmin && onGoWriteDaily && (
-              <button type="button" onClick={onGoWriteDaily} className="min-h-9 text-xs font-semibold text-wb-brand hover:underline">写新早报</button>
-            )}
-            {newsPost && (
-              <button type="button" onClick={() => onSelectPost(newsPost.id)} className="inline-flex min-h-9 items-center gap-0.5 rounded-lg bg-wb-brand/10 px-2.5 text-xs font-semibold text-wb-brand hover:bg-wb-brand/20">
-                阅读早报
-                <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
-              </button>
-            )}
-          </div>
-        </section>
+        <DailyNewsBar post={newsPost} onRead={onSelectPost} onWrite={isAdmin ? onGoWriteDaily : undefined} />
 
         <div role="group" aria-label="技术分区" className="md:hidden">
           <div className="flex flex-wrap items-center gap-1.5">
@@ -556,7 +504,11 @@ export const ProHome: React.FC<ProHomeProps> = ({
                   {cat}
                 </button>
               );
-            })}
+            }).flatMap((item, i) => (onGoHabit && (categories[i] === '问答广场' || (!categories.includes('问答广场') && i === 0))) ? [item, (
+              <button key="habit-link" type="button" onClick={onGoHabit} className="min-h-9 shrink-0 whitespace-nowrap rounded-lg border border-wb-brand/20 bg-wb-brand/10 px-2.5 text-xs font-semibold text-wb-brand hover:bg-wb-brand/20">
+                自律打卡
+              </button>
+            )] : [item])}
           </div>
         </div>
 
@@ -623,22 +575,6 @@ export const ProHome: React.FC<ProHomeProps> = ({
             </AnimatePresence>
           </button>
 
-          <div role="group" aria-label="排列顺序" className="relative flex shrink-0 items-center rounded-xl border border-wb-border-subtle bg-wb-bg-subtle p-0.5">
-            {([['desc', '倒序'], ['asc', '正序'], ['custom', '拖拽']] as const).map(([k, label]) => (
-              <button key={k} type="button" onClick={() => setFeedOrder(k)} aria-pressed={feedOrder === k}
-                className={`relative z-10 inline-flex min-h-9 items-center gap-0.5 rounded-lg px-2 text-xs font-semibold transition-colors ${
-                  feedOrder === k ? 'text-wb-text-primary' : 'text-wb-text-muted hover:text-wb-text-secondary'}`}
-              >
-                {feedOrder === k && (
-                  <motion.div layoutId="pro-order-indicator"
-                    transition={{ type: 'spring', stiffness: 500, damping: 35 }}
-                    className="absolute inset-0 bg-wb-bg-surface rounded-md shadow-xs border border-wb-border-subtle/60 -z-10" />
-                )}
-                {k === 'custom' && <ArrowDownUp className="w-2.5 h-2.5" />}{label}
-              </button>
-            ))}
-          </div>
-
           <div role="group" aria-label="动态布局" className="relative flex shrink-0 items-center rounded-xl border border-wb-border-subtle bg-wb-bg-subtle p-0.5 text-xs font-medium">
             {([
               { key: 'card', label: '卡片', Icon: Layout, title: '舒适卡片流' },
@@ -668,16 +604,11 @@ export const ProHome: React.FC<ProHomeProps> = ({
         >
           {posts.length > 0 ? (
             <>
-              {displayPosts.map((post) =>
+              {posts.map((post) =>
                 feedViewMode === 'dense' ? (
                   /* 极客纯文本单行信息流 (Dense Row) */
                   <article
                     key={post.id}
-                    draggable={feedOrder === 'custom'}
-                    onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; setDragPostId(post.id); }}
-                    onDragOver={(e) => { if (feedOrder === 'custom') e.preventDefault(); }}
-                    onDrop={(e) => { e.preventDefault(); dropFeedPost(post.id); }}
-                    onDragEnd={() => setDragPostId(null)}
                     onClick={() => onSelectPost(post.id)}
                     className="group flex min-h-12 w-full cursor-pointer items-center justify-between gap-2 rounded-xl border border-wb-border-subtle bg-wb-bg-surface px-3 py-2 text-xs transition-colors hover:border-wb-border-strong hover:bg-wb-bg-subtle/80 sm:px-4"
                   >
@@ -716,11 +647,6 @@ export const ProHome: React.FC<ProHomeProps> = ({
                   /* 专业卡片流 (Pro Card) */
                   <article
                     key={post.id}
-                    draggable={feedOrder === 'custom'}
-                    onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; setDragPostId(post.id); }}
-                    onDragOver={(e) => { if (feedOrder === 'custom') e.preventDefault(); }}
-                    onDrop={(e) => { e.preventDefault(); dropFeedPost(post.id); }}
-                    onDragEnd={() => setDragPostId(null)}
                     onClick={() => onSelectPost(post.id)}
                     className="group w-full cursor-pointer space-y-3 rounded-2xl border border-wb-border-subtle bg-wb-bg-surface p-3.5 transition-colors hover:border-wb-border-strong sm:p-4"
                   >
@@ -936,7 +862,7 @@ export const ProHome: React.FC<ProHomeProps> = ({
         <Leaderboard onSelectUser={onSelectUser} />
 
         {/* 专栏：经典版有的折叠 / 倒序 / 拖拽排序，专业版同样提供 */}
-        <SeriesPanel onSelectPost={onSelectPost} />
+        <SeriesPanel onSelectPost={onSelectPost} viewer={user} />
       </aside>
 
     </div>

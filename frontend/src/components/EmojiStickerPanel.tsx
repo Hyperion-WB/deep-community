@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ImagePlus, Loader2, Smile, Trash2, X } from 'lucide-react';
-import { apiClient } from '../api/client';
+import { ArrowDown, ArrowUp, Check, ImagePlus, Loader2, Pencil, Plus, Settings2, Smile, Trash2, X } from 'lucide-react';
+import { apiClient, formatApiErrorDetail, UPLOAD_TIMEOUT } from '../api/client';
+import { useOverlayEscape } from '../hooks/useDialogA11y';
 import { useToast } from './Toast';
 import { EMOJI_CATEGORIES } from './EmojiPicker';
 import { SafeImage } from './SafeImage';
@@ -24,10 +25,15 @@ interface Props {
   onSelectSticker: (url: string) => void;
 }
 
-type Tab = 'emoji' | 'sticker';
+type Tab = 'emoji' | 'sticker' | 'official';
+
+type OfficialSeries = { id: string; name: string; items: StickerItem[] };
+type OfficialCatalog = { series: OfficialSeries[]; can_manage: boolean };
+const OFFICIAL_API = '/stickers/official';
+const EDIT_BUTTON = 'shrink-0 p-1.5 rounded-lg text-wb-text-secondary hover:bg-wb-bg-subtle disabled:opacity-30';
 
 /**
- * 统一的表情面板：常用表情 + 我的表情。
+ * 统一的表情面板：常用表情、我的表情、官方表情。
  *
  * 用 createPortal 挂到 body，fixed 定位——评论输入框很窄，
  * 之前 absolute 展开会被卡片裁掉一半；挂在 body 上也避免了两份评论输入区各渲染一个面板。
@@ -48,7 +54,7 @@ export const EmojiStickerPanel: React.FC<Props> = ({
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
 
   const reposition = useCallback(() => {
-    const width = Math.min(window.innerWidth * 0.94, 416);
+    const width = panelRef.current?.offsetWidth || Math.min(window.innerWidth - 16, 416);
 
     // 没有锚点（例如评论输入区直接把面板挂在按钮上）时，
     // 回退到「视口下方居中」，保证面板一定可见，而不是跑到屏幕外
@@ -81,7 +87,6 @@ export const EmojiStickerPanel: React.FC<Props> = ({
       return;
     }
     reposition();
-    // 面板内容（我的表情列表）加载后高度会变，再校准一次
     const raf = window.requestAnimationFrame(reposition);
     window.addEventListener('resize', reposition);
     window.addEventListener('scroll', reposition, true);
@@ -98,7 +103,31 @@ export const EmojiStickerPanel: React.FC<Props> = ({
   const [limit, setLimit] = useState(60);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [hovered, setHovered] = useState<string | null>(null);
+  const [preview, setPreview] = useState<{ item: StickerItem; left: number; top: number; size: number } | null>(null);
+
+  const showPreview = (item: StickerItem, target: HTMLElement) => {
+    const rect = target.getBoundingClientRect();
+    const gap = 8;
+    const size = Math.min(144, window.innerWidth - 2 * gap, window.innerHeight - 2 * gap);
+    const preferredTop = rect.top >= size + 2 * gap ? rect.top - size - gap : rect.bottom + gap;
+    setPreview({
+      item, size,
+      left: Math.max(gap, Math.min(rect.left + (rect.width - size) / 2, window.innerWidth - size - gap)),
+      top: Math.max(gap, Math.min(preferredTop, window.innerHeight - size - gap)),
+    });
+  };
+
+  useLayoutEffect(() => {
+    setPreview(null);
+    if (!isOpen) return;
+    const clearPreview = () => setPreview(null);
+    window.addEventListener('resize', clearPreview);
+    window.addEventListener('scroll', clearPreview, true);
+    return () => {
+      window.removeEventListener('resize', clearPreview);
+      window.removeEventListener('scroll', clearPreview, true);
+    };
+  }, [isOpen, tab]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -106,7 +135,7 @@ export const EmojiStickerPanel: React.FC<Props> = ({
       const res = await apiClient.get('/stickers/mine');
       setItems(Array.isArray(res.data?.items) ? res.data.items : []);
       setUsed(res.data?.used ?? 0);
-      setLimit(res.data?.limit ?? 30);
+      setLimit(res.data?.limit ?? 60);
     } catch {
       /* 未登录时静默 */
     } finally {
@@ -118,12 +147,96 @@ export const EmojiStickerPanel: React.FC<Props> = ({
     if (isOpen) load();
   }, [isOpen, load]);
 
+  const [catalog, setCatalog] = useState<OfficialCatalog | null>(null);
+  const [officialLoading, setOfficialLoading] = useState(false);
+  const [officialError, setOfficialError] = useState(false);
+  const [manage, setManage] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [name, setName] = useState('');
+  const [uploadErrors, setUploadErrors] = useState<{ filename: string | null; message: string }[]>([]);
+
+  const loadOfficial = useCallback(async () => {
+    setOfficialLoading(true);
+    setOfficialError(false);
+    try {
+      const { data } = await apiClient.get<OfficialCatalog>(OFFICIAL_API);
+      setCatalog(data);
+      if (!data.can_manage) setManage(false);
+    } catch {
+      setOfficialError(true);
+    } finally {
+      setOfficialLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isOpen && tab === 'official') void loadOfficial();
+  }, [isOpen, tab, loadOfficial]);
+
+  const mutateOfficial = async (action: () => Promise<void>) => {
+    setBusy(true);
+    try {
+      await action();
+      await loadOfficial();
+    } catch (err: any) {
+      toast.error(formatApiErrorDetail(err?.response?.data?.detail));
+      if (err?.response?.status === 409 || err?.response?.status === 403) await loadOfficial();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const saveSeries = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (busy || !name.trim() || editId === null) return;
+    const payload = { name: name.trim() };
+    void mutateOfficial(async () => {
+      if (editId) await apiClient.patch(`${OFFICIAL_API}/series/${editId}`, payload);
+      else await apiClient.post(`${OFFICIAL_API}/series`, payload);
+      setEditId(null);
+      setName('');
+    });
+  };
+
+  const moveSeries = (index: number, step: number) => {
+    const ids = catalog?.series.map((series) => series.id);
+    const target = index + step;
+    if (busy || !ids || target < 0 || target >= ids.length) return;
+    [ids[index], ids[target]] = [ids[target], ids[index]];
+    void mutateOfficial(async () => {
+      await apiClient.put(`${OFFICIAL_API}/series/order`, { ids });
+    });
+  };
+
+  const uploadOfficial = (id: string, files: File[]) => {
+    if (busy || !files.length) return;
+    setUploadErrors([]);
+    if (files.length > 20 || files.reduce((size, file) => size + file.size, 0) > 24 * 1024 * 1024) {
+      toast.error('每批最多上传 20 张图片，总大小不能超过 24 MB');
+      return;
+    }
+    const body = new FormData();
+    files.forEach((file) => body.append('files', file));
+    void mutateOfficial(async () => {
+      const { data } = await apiClient.post<{ uploaded: number; errors: typeof uploadErrors }>(
+        `${OFFICIAL_API}/series/${id}/upload`, body,
+        { headers: { 'Content-Type': 'multipart/form-data' }, timeout: UPLOAD_TIMEOUT },
+      );
+      setUploadErrors(data.errors);
+      if (data.uploaded) toast.success(`已上传 ${data.uploaded} 张官方表情`);
+    });
+  };
+
   // 切页签、列表加载完成都会改变面板高度，需要重新贴合按钮
   useEffect(() => {
     if (!isOpen) return;
-    const raf = window.requestAnimationFrame(reposition);
-    return () => window.cancelAnimationFrame(raf);
-  }, [isOpen, tab, items.length, loading, reposition]);
+    const observer = new ResizeObserver(reposition);
+    if (panelRef.current) observer.observe(panelRef.current);
+    return () => observer.disconnect();
+  }, [isOpen, reposition]);
+
+  useOverlayEscape(isOpen, onClose, 130);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -134,15 +247,8 @@ export const EmojiStickerPanel: React.FC<Props> = ({
         onClose();
       }
     };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
     document.addEventListener('mousedown', onDown);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onDown);
-      document.removeEventListener('keydown', onKey);
-    };
+    return () => document.removeEventListener('mousedown', onDown);
   }, [isOpen, onClose, anchor]);
 
   const handleUpload = async (file: File) => {
@@ -181,10 +287,9 @@ export const EmojiStickerPanel: React.FC<Props> = ({
       ref={panelRef}
       data-overlay="1"
       style={pos ? { top: pos.top, left: pos.left } : { top: -9999, left: -9999 }}
-      className="fixed z-[130] w-[min(94vw,26rem)] rounded-2xl frost border border-wb-border-strong shadow-2xl overflow-hidden"
+      className="fixed z-[130] flex h-[23rem] max-h-[calc(100dvh-1rem)] w-[min(calc(100vw-1rem),26rem)] flex-col rounded-2xl frost border border-wb-border-strong shadow-2xl overflow-hidden"
     >
-      {/* 顶部两个页签 */}
-      <div className="flex items-center justify-between px-3 pt-2.5 pb-0">
+      <div className="flex shrink-0 items-center justify-between px-2 sm:px-3 pt-2.5 pb-0">
         <div className="flex items-center gap-1">
           <button
             type="button"
@@ -207,9 +312,17 @@ export const EmojiStickerPanel: React.FC<Props> = ({
             }`}
           >
             我的表情
-            <span className="ml-1 text-2xs opacity-70 font-mono">
-              {used}/{limit}
-            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setTab('official')}
+            className={`px-2 sm:px-3 py-1.5 whitespace-nowrap rounded-capsule text-xs font-semibold transition-colors ${
+              tab === 'official'
+                ? 'bg-wb-text-primary text-wb-bg-page'
+                : 'text-wb-text-secondary hover:text-wb-text-primary hover:bg-wb-bg-subtle'
+            }`}
+          >
+            官方表情
           </button>
         </div>
         <button
@@ -221,7 +334,7 @@ export const EmojiStickerPanel: React.FC<Props> = ({
         </button>
       </div>
 
-      <div className="p-3 max-h-[17rem] overflow-y-auto overscroll-contain">
+      <div key={tab} className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 [scrollbar-gutter:stable]">
         {tab === 'emoji' ? (
           <div className="space-y-3">
             {EMOJI_CATEGORIES.map((cat) => (
@@ -242,6 +355,123 @@ export const EmojiStickerPanel: React.FC<Props> = ({
               </div>
             ))}
           </div>
+        ) : tab === 'official' ? (
+          <div className="space-y-3">
+            {officialLoading && !catalog ? (
+              <div className="py-10 flex items-center justify-center gap-2 text-2xs text-wb-text-muted">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" /> 加载中…
+              </div>
+            ) : officialError ? (
+              <div className="py-8 text-center text-xs text-wb-text-muted">
+                加载官方表情失败
+                <button type="button" onClick={() => void loadOfficial()} className="ml-2 underline">重试</button>
+              </div>
+            ) : catalog && (
+              <>
+                {catalog.can_manage && (
+                  <div className="flex items-center justify-end gap-1">
+                    {busy && <Loader2 aria-label="处理中" className="w-4 h-4 animate-spin" />}
+                    <button
+                      type="button" aria-label="管理官方表情" title="管理官方表情" aria-pressed={manage}
+                      onClick={() => { setManage(!manage); setEditId(null); setUploadErrors([]); }}
+                      className={`${EDIT_BUTTON} ${manage ? 'bg-wb-bg-subtle' : ''}`}
+                    >
+                      <Settings2 className="w-4 h-4" />
+                    </button>
+                    {manage && (
+                      <button
+                        type="button" aria-label="新建系列" title="新建系列" disabled={busy}
+                        onClick={() => { setEditId(''); setName(''); }} className={EDIT_BUTTON}
+                      >
+                        <Plus className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                )}
+                {catalog.can_manage && manage && editId !== null && (
+                  <form onSubmit={saveSeries} className="flex items-center gap-1">
+                    <input
+                      autoFocus value={name} maxLength={60} onChange={(event) => setName(event.target.value)}
+                      placeholder="系列名称" aria-label="系列名称"
+                      className="min-w-0 flex-1 rounded-lg border border-wb-border-strong bg-wb-bg-subtle px-2 py-1 text-xs"
+                    />
+                    <button type="submit" aria-label="保存" title="保存" disabled={busy || !name.trim()} className={EDIT_BUTTON}>
+                      <Check className="w-4 h-4" />
+                    </button>
+                    <button type="button" aria-label="取消" title="取消" onClick={() => setEditId(null)} className={EDIT_BUTTON}>
+                      <X className="w-4 h-4" />
+                    </button>
+                  </form>
+                )}
+                {manage && uploadErrors.length > 0 && (
+                  <ul role="status" className="space-y-1 break-words text-xs text-wb-danger">
+                    {uploadErrors.map(({ filename, message }, index) => (
+                      <li key={index}>{filename || '图片'}：{message}</li>
+                    ))}
+                  </ul>
+                )}
+                {!catalog.series.some((series) => series.items.length || (catalog.can_manage && manage)) && (
+                  <p className="py-10 text-center text-xs text-wb-text-muted">暂无官方表情</p>
+                )}
+                {catalog.series.map((series, index) => {
+                  const editing = catalog.can_manage && manage;
+                  if (!editing && !series.items.length) return null;
+                  return (
+                    <section key={series.id} className="space-y-1.5">
+                      <div className="flex items-center gap-1">
+                        <h3 className="min-w-0 flex-1 break-words text-xs font-semibold text-wb-text-secondary">{series.name}</h3>
+                        {editing && (
+                          <>
+                            <button type="button" aria-label="改名" title="改名" disabled={busy} className={EDIT_BUTTON}
+                              onClick={() => { setEditId(series.id); setName(series.name); }}>
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                            <button type="button" aria-label="上移系列" title="上移系列" className={EDIT_BUTTON}
+                              disabled={busy || index === 0} onClick={() => moveSeries(index, -1)}>
+                              <ArrowUp className="w-3.5 h-3.5" />
+                            </button>
+                            <button type="button" aria-label="下移系列" title="下移系列" className={EDIT_BUTTON}
+                              disabled={busy || index === catalog.series.length - 1} onClick={() => moveSeries(index, 1)}>
+                              <ArrowDown className="w-3.5 h-3.5" />
+                            </button>
+                            <label title="批量上传表情" className={`relative ${EDIT_BUTTON} ${busy ? 'opacity-30' : 'cursor-pointer focus-within:ring-1'}`}>
+                              <ImagePlus className="w-3.5 h-3.5" />
+                              <input
+                                type="file" aria-label={`批量上传表情至${series.name}`} multiple disabled={busy}
+                                accept="image/gif,image/png,image/jpeg,image/webp" className="sr-only"
+                                onChange={(event) => {
+                                  const files = Array.from(event.currentTarget.files ?? []);
+                                  event.currentTarget.value = '';
+                                  uploadOfficial(series.id, files);
+                                }}
+                              />
+                            </label>
+                          </>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-6 gap-1.5">
+                        {series.items.map((item, stickerIndex) => (
+                          <button
+                            key={item.id} type="button" aria-label={`${series.name}表情${stickerIndex + 1}`}
+                            onClick={() => { onSelectSticker(item.url); onClose(); }}
+                            onMouseEnter={(event) => showPreview(item, event.currentTarget)} onMouseLeave={() => setPreview(null)}
+                            onFocus={(event) => { if (event.currentTarget.matches(':focus-visible')) showPreview(item, event.currentTarget); }}
+                            onBlur={() => setPreview(null)}
+                            className="aspect-square min-w-0 rounded-lg p-1 hover:bg-wb-bg-subtle transition-colors"
+                          >
+                            <SafeImage
+                              src={item.thumb_url || item.url} fallbackSrc={item.url}
+                              compatiblePreview alt="" loading="lazy" className="w-full h-full object-contain"
+                            />
+                          </button>
+                        ))}
+                      </div>
+                    </section>
+                  );
+                })}
+              </>
+            )}
+          </div>
         ) : loading ? (
           <div className="py-10 flex items-center justify-center gap-2 text-2xs text-wb-text-muted">
             <Loader2 className="w-3.5 h-3.5 animate-spin" /> 加载中…
@@ -254,15 +484,14 @@ export const EmojiStickerPanel: React.FC<Props> = ({
           </div>
         ) : (
           <div className="grid grid-cols-6 gap-1.5">
-            {items.map((item) => (
-              <div
-                key={item.id}
-                className="group/sticker relative"
-                onMouseEnter={() => setHovered(item.id)}
-                onMouseLeave={() => setHovered(null)}
-              >
+            {items.map((item, index) => (
+              <div key={item.id} className="group/sticker relative">
                 <button
                   type="button"
+                  aria-label={`我的表情${index + 1}`}
+                  onMouseEnter={(event) => showPreview(item, event.currentTarget)} onMouseLeave={() => setPreview(null)}
+                  onFocus={(event) => { if (event.currentTarget.matches(':focus-visible')) showPreview(item, event.currentTarget); }}
+                  onBlur={() => setPreview(null)}
                   onClick={() => {
                     onSelectSticker(item.url);
                     onClose();
@@ -270,8 +499,8 @@ export const EmojiStickerPanel: React.FC<Props> = ({
                   className="w-full aspect-square rounded-lg hover:bg-wb-bg-subtle p-1 transition-colors"
                 >
                   <SafeImage
-                    src={item.is_animated && hovered === item.id ? item.url : item.thumb_url || item.url}
-                    fallbackSrc={item.is_animated && hovered === item.id ? item.thumb_url : item.url}
+                    src={item.thumb_url || item.url}
+                    fallbackSrc={item.url}
                     compatiblePreview
                     alt=""
                     loading="lazy"
@@ -293,7 +522,7 @@ export const EmojiStickerPanel: React.FC<Props> = ({
       </div>
 
       {tab === 'sticker' && (
-        <div className="px-3 pb-3">
+        <div className="shrink-0 px-3 pb-3">
           <button
             type="button"
             disabled={uploading || used >= limit}
@@ -301,7 +530,7 @@ export const EmojiStickerPanel: React.FC<Props> = ({
             className="w-full h-9 rounded-xl border border-dashed border-wb-border-strong text-2xs text-wb-text-secondary hover:text-wb-text-primary hover:bg-wb-bg-subtle inline-flex items-center justify-center gap-1.5 disabled:opacity-50"
           >
             {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ImagePlus className="w-3.5 h-3.5" />}
-            {used >= limit ? `已达上限 ${limit} 个` : uploading ? '正在压缩并上传…' : '上传表情（GIF 自动压缩）'}
+            {uploading ? '正在压缩并上传…' : `上传表情（${used}/${limit}）`}
           </button>
         </div>
       )}
@@ -320,5 +549,24 @@ export const EmojiStickerPanel: React.FC<Props> = ({
     </div>
   );
 
-  return typeof document !== 'undefined' ? createPortal(content, document.body) : content;
+  return typeof document !== 'undefined' ? createPortal(
+    <>
+      {content}
+      {preview && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none fixed z-[131] flex items-center justify-center rounded-xl border border-wb-border-strong bg-wb-bg-page p-2 shadow-xl"
+          style={{ top: preview.top, left: preview.left, width: preview.size, height: preview.size }}
+        >
+          <SafeImage
+            key={preview.item.id}
+            src={preview.item.url}
+            fallbackSrc={preview.item.thumb_url}
+            compatiblePreview alt="" loading="eager" className="w-full h-full object-contain"
+          />
+        </div>
+      )}
+    </>,
+    document.body,
+  ) : content;
 };

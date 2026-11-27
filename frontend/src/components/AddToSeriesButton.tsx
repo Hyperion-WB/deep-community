@@ -18,24 +18,34 @@ export const AddToSeriesButton: React.FC<{ postId: string }> = ({ postId }) => {
   const [list, setList] = useState<SeriesBrief[]>([]);
   const [newTitle, setNewTitle] = useState('');
   const [busy, setBusy] = useState(false);
-  const myName = (() => {
-    try { return JSON.parse(localStorage.getItem('geek_user') || '{}')?.username || ''; } catch { return ''; }
-  })();
-
-  const load = useCallback(async () => {
+  const load = useCallback(async (signal?: AbortSignal) => {
     try {
-      const res = await apiClient.get('/posts/series/all', { params: { page: 1, size: 50 } });
-      const all = Array.isArray(res.data) ? res.data : [];
-      setList(all.filter((s: SeriesBrief) => !myName || s.author_username === myName));
-    } catch { setList([]); }
-  }, [myName]);
+      const res = await apiClient.get('/posts/series/mine', { signal });
+      if (!signal?.aborted) setList(Array.isArray(res.data) ? res.data : []);
+    } catch { if (!signal?.aborted) setList([]); }
+  }, []);
 
-  useEffect(() => { if (open) void load(); }, [open, load]);
+  useEffect(() => {
+    if (!open) return;
+    let controller: AbortController | undefined;
+    const refresh = () => {
+      controller?.abort();
+      controller = new AbortController();
+      void load(controller.signal);
+    };
+    refresh();
+    window.addEventListener('wb:series-changed', refresh);
+    return () => {
+      window.removeEventListener('wb:series-changed', refresh);
+      controller?.abort();
+    };
+  }, [open, load]);
 
   const addTo = async (seriesId: string, title: string) => {
     setBusy(true);
     try {
-      await apiClient.post(`/posts/series/${seriesId}/items`, { post_id: postId, sort_order: 0 });
+      await apiClient.post(`/posts/series/${seriesId}/items`, { post_id: postId });
+      window.dispatchEvent(new Event('wb:series-changed'));
       toast.success(`已加入专栏「${title}」`);
       setOpen(false);
     } catch (e: any) {
@@ -51,7 +61,11 @@ export const AddToSeriesButton: React.FC<{ postId: string }> = ({ postId }) => {
       const res = await apiClient.post('/posts/series', { title, description: '' });
       const id = res.data?.id;
       if (!id) throw new Error('创建失败');
-      await apiClient.post(`/posts/series/${id}/items`, { post_id: postId, sort_order: 0 });
+      try {
+        await apiClient.post(`/posts/series/${id}/items`, { post_id: postId });
+      } finally {
+        window.dispatchEvent(new Event('wb:series-changed'));
+      }
       toast.success(`已创建并加入「${title}」`);
       setNewTitle('');
       setOpen(false);
