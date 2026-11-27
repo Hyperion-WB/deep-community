@@ -33,7 +33,7 @@
     "tailwind-merge": "^3.7.0"
   },
   "devDependencies": {
-    "@types/node": "^24.13.3",
+    "@types/node": "^26.6.7",
     "@types/prismjs": "^1.26.6",
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19.2.18",
