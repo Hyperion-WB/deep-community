@@ -841,9 +841,11 @@ interface Props {
   embedded?: boolean;
   /** 把投票结果作为一条消息发到群里 */
   onShareToGroup?: (text: string) => void;
+  /** 从右侧游戏浮窗直接进入某个画板 */
+  initialGameId?: string | null;
 }
 
-const DrawGuessModal: React.FC<Pick<Props, 'roomId' | 'toast' | 'onClose' | 'embedded'>> = ({ roomId, toast, onClose, embedded }) => {
+const DrawGuessModal: React.FC<Pick<Props, 'roomId' | 'toast' | 'onClose' | 'embedded' | 'initialGameId'>> = ({ roomId, toast, onClose, embedded, initialGameId }) => {
   const dialogRef = useDialogA11y(true, onClose, embedded ? 9995 : 160);
 
   return createPortal(
@@ -858,14 +860,14 @@ const DrawGuessModal: React.FC<Pick<Props, 'roomId' | 'toast' | 'onClose' | 'emb
           </button>
         </header>
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 py-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] sm:p-4">
-          <DrawGuessPanel key={roomId} roomId={roomId} onGroupExp={(data) => reportGroupExp(toast, data)} />
+          <DrawGuessPanel key={roomId} roomId={roomId} initialBoardId={initialGameId} onGroupExp={(data) => reportGroupExp(toast, data)} />
         </div>
       </div>
     </div>, document.body
   );
 };
 
-export const GroupActivitiesModal: React.FC<Props> = ({ roomId, kind, canManage, toast, refreshKey = 0, onClose, embedded = false, onShareToGroup }) => {
+export const GroupActivitiesModal: React.FC<Props> = ({ roomId, kind, canManage, toast, refreshKey = 0, onClose, embedded = false, onShareToGroup, initialGameId }) => {
   useEffect(() => {
     if (!kind || kind === 'draw') return;
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -873,7 +875,7 @@ export const GroupActivitiesModal: React.FC<Props> = ({ roomId, kind, canManage,
     return () => window.removeEventListener('keydown', onKey);
   }, [kind, onClose]);
   if (!kind) return null;
-  if (kind === 'draw') return <DrawGuessModal roomId={roomId} toast={toast} onClose={onClose} embedded={embedded} />;
+  if (kind === 'draw') return <DrawGuessModal roomId={roomId} toast={toast} onClose={onClose} embedded={embedded} initialGameId={initialGameId} />;
   return createPortal(
     <div
       className={embedded

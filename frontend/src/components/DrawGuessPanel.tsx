@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowLeft, ArrowRight, Brush, Clock, Eraser, History, Lightbulb, Loader2, Play, Send, Trophy, Undo2, Users } from 'lucide-react';
 import { apiClient } from '../api/client';
+import { CustomDropdown } from './CustomDropdown';
 
 interface Point {
   x: number;
@@ -11,6 +12,8 @@ interface Stroke {
   color: string;
   width: number;
   points: Point[];
+  /** 本地草稿标识：只用来过滤“当前正在画的这一笔”，不会发给服务端。 */
+  localId?: string;
 }
 
 interface BoardSummary {
@@ -61,6 +64,7 @@ interface GroupExpReward {
 type GuessResponse = DrawGuessState & Partial<GroupExpReward>;
 
 interface ActiveStroke extends Stroke {
+  localId: string;
   roundId: string;
   canvasVersion: number;
   uploadedThrough: number;
@@ -69,6 +73,7 @@ interface ActiveStroke extends Stroke {
 interface Props {
   roomId: string;
   onGroupExp: (data: GroupExpReward) => void;
+  initialBoardId?: string | null;
 }
 
 const LOGICAL_WIDTH = 1600;
@@ -108,7 +113,7 @@ const errorMessage = (error: unknown): string => {
   return '操作失败，请检查网络后重试。';
 };
 
-export const DrawGuessPanel: React.FC<Props> = ({ roomId, onGroupExp }) => {
+export const DrawGuessPanel: React.FC<Props> = ({ roomId, onGroupExp, initialBoardId }) => {
   const endpoint = `/chat/groups/${encodeURIComponent(roomId)}/draw-guess/boards`;
   const [boards, setBoards] = useState<BoardSummary[] | null>(null);
   const [view, setView] = useState<'drawing' | 'finished'>('drawing');
@@ -122,6 +127,7 @@ export const DrawGuessPanel: React.FC<Props> = ({ roomId, onGroupExp }) => {
   const [hint, setHint] = useState('');
   const [listError, setListError] = useState('');
   const [createError, setCreateError] = useState('');
+  const autoOpenedRef = useRef(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -145,6 +151,21 @@ export const DrawGuessPanel: React.FC<Props> = ({ roomId, onGroupExp }) => {
       window.clearTimeout(timer);
     };
   }, [endpoint]);
+
+  useEffect(() => { autoOpenedRef.current = false; }, [initialBoardId]);
+
+  useEffect(() => {
+    if (!initialBoardId) {
+      autoOpenedRef.current = false;
+      return;
+    }
+    if (autoOpenedRef.current || !boards) return;
+    const target = boards.find((board) => String(board.board_id) === String(initialBoardId));
+    if (target) {
+      autoOpenedRef.current = true;
+      setSelected({ id: target.board_id });
+    }
+  }, [boards, initialBoardId]);
 
   const cleanAnswer = answer.trim();
   const cleanHint = hint.trim();
@@ -219,10 +240,14 @@ export const DrawGuessPanel: React.FC<Props> = ({ roomId, onGroupExp }) => {
           </fieldset>
           <label className="grid gap-1.5 text-xs font-semibold">
             回合时长
-            <select value={duration} onChange={(event) => setDuration(Number(event.target.value))} disabled={creating}
-              className="h-10 w-full rounded-lg border border-wb-border-subtle bg-wb-bg-page px-3 text-base sm:text-sm">
-              {ROUND_DURATIONS.map((seconds) => <option key={seconds} value={seconds}>{seconds} 秒</option>)}
-            </select>
+            <CustomDropdown
+              ariaLabel="回合时长"
+              size="md"
+              value={duration}
+              disabled={creating}
+              options={ROUND_DURATIONS.map((seconds) => ({ value: seconds, label: `${seconds} 秒` }))}
+              onChange={(value) => setDuration(Number(value))}
+            />
           </label>
           <fieldset disabled={creating} className="min-w-0">
             <legend className="mb-1.5 text-xs font-semibold">题目来源</legend>
@@ -246,11 +271,14 @@ export const DrawGuessPanel: React.FC<Props> = ({ roomId, onGroupExp }) => {
           ) : (
             <label className="grid min-w-0 gap-1.5 text-xs font-semibold">
               随机主题
-              <select value={category ?? ''} onChange={(event) => setCategory(DRAW_CATEGORIES.find(option => option.value === event.target.value)?.value ?? null)} disabled={creating}
-                className="h-10 w-full rounded-lg border border-wb-border-subtle bg-wb-bg-page px-3 text-base font-normal sm:text-sm">
-                <option value="">不限主题</option>
-                {DRAW_CATEGORIES.map(({ value, label }) => <option key={value} value={value}>{label}</option>)}
-              </select>
+              <CustomDropdown
+                ariaLabel="随机主题"
+                size="md"
+                value={category ?? ''}
+                disabled={creating}
+                options={[{ value: '', label: '不限主题' }, ...DRAW_CATEGORIES.map(({ value, label }) => ({ value, label }))]}
+                onChange={(value) => setCategory(DRAW_CATEGORIES.find(option => option.value === value)?.value ?? null)}
+              />
             </label>
           )}
           <label className="grid min-w-0 gap-1.5 text-xs font-semibold">
@@ -338,6 +366,7 @@ const DrawGuessBoard: React.FC<BoardProps> = ({ boardId, endpoint, initial, onBa
   const renderedStrokesRef = useRef<Stroke[]>([]);
   const redrawRef = useRef<() => void>(() => {});
   const redrawFrameRef = useRef(0);
+  const previewFrameRef = useRef(0);
   const snapshotRef = useRef<DrawGuessState | null>(initial ?? null);
   const activeStrokeRef = useRef<ActiveStroke | null>(null);
   const activePointerRef = useRef<number | null>(null);
@@ -436,7 +465,8 @@ const DrawGuessBoard: React.FC<BoardProps> = ({ boardId, endpoint, initial, onBa
     const serverStrokes = game?.strokes ?? [];
     const serverKeys = new Set(serverStrokes.map(strokeSignature));
     // 已经落到服务端的笔画不要再叠加本地草稿，否则同一笔会画两遍、看起来发粗/抖动。
-    const optimistic = activePreview ? [] : pendingStrokes.filter((stroke) => !serverKeys.has(strokeSignature(stroke)));
+    const optimistic = pendingStrokes.filter((stroke) =>
+      !serverKeys.has(strokeSignature(stroke)) && (!activePreview || stroke.localId !== activePreview.localId));
     return [...serverStrokes, ...optimistic, ...(activePreview ? [activePreview] : [])];
   }, [activePreview, game?.strokes, pendingStrokes]);
 
@@ -502,6 +532,7 @@ const DrawGuessBoard: React.FC<BoardProps> = ({ boardId, endpoint, initial, onBa
       observer.disconnect();
       window.removeEventListener('resize', schedule);
       if (redrawFrameRef.current) window.cancelAnimationFrame(redrawFrameRef.current);
+      if (previewFrameRef.current) window.cancelAnimationFrame(previewFrameRef.current);
     };
   }, []);
 
@@ -515,7 +546,7 @@ const DrawGuessBoard: React.FC<BoardProps> = ({ boardId, endpoint, initial, onBa
 
   const queueStroke = useCallback((stroke: ActiveStroke, points: Point[]) => {
     if (!points.length) return;
-    const segment: Stroke = { color: stroke.color, width: stroke.width, points };
+    const segment: Stroke = { color: stroke.color, width: stroke.width, points, localId: stroke.localId };
     pendingStrokesRef.current = [...pendingStrokesRef.current, segment];
     setPendingStrokes(pendingStrokesRef.current);
     pendingRequestsRef.current += 1;
@@ -576,6 +607,7 @@ const DrawGuessBoard: React.FC<BoardProps> = ({ boardId, endpoint, initial, onBa
     event.currentTarget.setPointerCapture(event.pointerId);
     activePointerRef.current = event.pointerId;
     const stroke: ActiveStroke = {
+      localId: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       roundId: current.round_id,
       canvasVersion: current.canvas_version,
       color,
@@ -595,7 +627,14 @@ const DrawGuessBoard: React.FC<BoardProps> = ({ boardId, endpoint, initial, onBa
     const previous = stroke.points[stroke.points.length - 1];
     if (!point || (Math.abs(previous.x - point.x) < 0.0005 && Math.abs(previous.y - point.y) < 0.0005)) return;
     stroke.points = [...stroke.points, point];
-    setActivePreview({ color: stroke.color, width: stroke.width, points: stroke.points });
+    // pointermove 频率可能高于屏幕刷新率：合并到下一帧再触发 React 重绘，减少卡顿。
+    if (!previewFrameRef.current) {
+      previewFrameRef.current = window.requestAnimationFrame(() => {
+        previewFrameRef.current = 0;
+        const active = activeStrokeRef.current;
+        if (active) setActivePreview({ color: active.color, width: active.width, points: active.points, localId: active.localId });
+      });
+    }
     sendAvailableChunks(stroke);
   };
 
@@ -614,6 +653,10 @@ const DrawGuessBoard: React.FC<BoardProps> = ({ boardId, endpoint, initial, onBa
     }
     activeStrokeRef.current = null;
     activePointerRef.current = null;
+    if (previewFrameRef.current) {
+      window.cancelAnimationFrame(previewFrameRef.current);
+      previewFrameRef.current = 0;
+    }
     setActivePreview(null);
     setPointerDown(false);
 
@@ -716,6 +759,10 @@ const DrawGuessBoard: React.FC<BoardProps> = ({ boardId, endpoint, initial, onBa
     clearRequestedRef.current = true;
     activeStrokeRef.current = null;
     activePointerRef.current = null;
+    if (previewFrameRef.current) {
+      window.cancelAnimationFrame(previewFrameRef.current);
+      previewFrameRef.current = 0;
+    }
     setActivePreview(null);
     setPointerDown(false);
     setBusy(true);
@@ -881,11 +928,15 @@ const DrawGuessBoard: React.FC<BoardProps> = ({ boardId, endpoint, initial, onBa
                   <input value={nextHint} onChange={(event) => setNextHint(event.target.value.slice(0, 30))}
                     maxLength={30} placeholder="提示（选填）" aria-label="下一题提示"
                     className="h-8 min-w-0 rounded-lg border border-wb-border-subtle bg-white px-2.5 text-xs focus:border-wb-brand focus:outline-none" />
-                  <select value={nextDuration} onChange={(event) => setNextDuration(Number(event.target.value))}
-                    aria-label="下一轮时长"
-                    className="h-8 rounded-lg border border-wb-border-subtle bg-white px-2 text-xs focus:border-wb-brand focus:outline-none">
-                    {ROUND_DURATIONS.map((value) => <option key={value} value={value}>{value} 秒</option>)}
-                  </select>
+                  <CustomDropdown
+                    ariaLabel="下一轮时长"
+                    size="sm"
+                    value={nextDuration}
+                    className="w-full"
+                    triggerClassName="w-full"
+                    options={ROUND_DURATIONS.map((value) => ({ value, label: `${value} 秒` }))}
+                    onChange={(value) => setNextDuration(Number(value))}
+                  />
                 </div>
               )}
               <div className="mt-2.5 flex flex-wrap items-center gap-2">

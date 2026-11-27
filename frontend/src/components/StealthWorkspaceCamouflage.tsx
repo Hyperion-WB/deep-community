@@ -27,6 +27,7 @@ import { GroupActivitiesModal, FortuneOverlay } from './GroupActivities';
 import { EMOJI_CATEGORIES } from './EmojiPicker';
 import { SafeImage } from './SafeImage';
 import { apiClient } from '../api/client';
+import { CustomDropdown } from './CustomDropdown';
 
 export type StealthTheme = 'normal' | 'vscode' | 'idea' | 'feishu' | 'excel' | 'word' | 'ppt';
 
@@ -562,17 +563,22 @@ export const StealthWorkspaceCamouflage: React.FC<Props> = ({
             <div className={`px-2 py-1 font-semibold border-b ${dark ? 'text-zinc-400 border-white/10' : 'text-zinc-500 border-zinc-200'}`}>
               群互动工具
             </div>
-            <label className="flex items-center gap-1 px-2 py-1.5">
+            <div className="flex items-center gap-1 px-2 py-1.5">
               <AtSign className="h-3 w-3 shrink-0" />
-              <select aria-label="提及成员" className={`min-w-0 flex-1 rounded ${dark ? 'bg-zinc-800' : 'bg-white'}`} value="" onChange={(event) => {
-                const name = event.currentTarget.value;
-                setInputText((value) => `${value}${value && !/\s$/.test(value) ? ' ' : ''}@${name} `);
-                setShowTools(false);
-              }}>
-                <option value="" disabled>提及成员</option>
-                {mentionMembers.map((member) => <option key={member.user_id} value={member.nickname || member.username}>{member.nickname || member.username}</option>)}
-              </select>
-            </label>
+              <CustomDropdown
+                ariaLabel="提及成员"
+                size="xs"
+                value=""
+                placeholder="提及成员"
+                className="min-w-0 flex-1"
+                triggerClassName={`w-full ${dark ? '!bg-zinc-800 !border-white/10 !text-zinc-100' : ''}`}
+                options={mentionMembers.map((member) => ({ value: member.nickname || member.username, label: member.nickname || member.username }))}
+                onChange={(name) => {
+                  setInputText((value) => `${value}${value && !/\s$/.test(value) ? ' ' : ''}@${String(name)} `);
+                  setShowTools(false);
+                }}
+              />
+            </div>
             {onOpenGroupAction && ([['members', '群成员'], ['levels', '群等级榜'], ...(canManageGroup ? [['checkinCfg', '签到设置']] : [])] as const).map(([key, label]) => (
               <button key={key} type="button" className={`block w-full px-2 py-1.5 text-left ${hoverCls}`}
                 onClick={() => { setShowTools(false); onOpenGroupAction(key as 'members' | 'levels' | 'checkinCfg'); }}>{label}</button>

@@ -8,6 +8,7 @@ import { DiceCube } from '../components/minigames/DiceCube';
 import { SafeImage } from '../components/SafeImage';
 import { GroupActivitiesModal, FortuneOverlay, reportGroupExp, type FortuneResult } from '../components/GroupActivities';
 import { LunchWheel } from '../components/LunchWheel';
+import { GameDock, type GameDockKind } from '../components/GameDock';
 import { useDialogA11y } from '../hooks/useDialogA11y';
 import { useImageDrop, DROP_HINT_CLASS } from '../hooks/useImageDrop';
 import type {
@@ -358,6 +359,15 @@ export const Chat: React.FC<Props> = ({
   const [showCheckinConfig, setShowCheckinConfig] = useState(false);
   // 成语接龙 / 每日求签 / 群投票
   const [activityKind, setActivityKind] = useState<'chain' | 'poll' | 'feihua' | 'draw' | null>(null);
+  const [activityTargetId, setActivityTargetId] = useState<string | null>(null);
+  const openActivity = (kind: 'chain' | 'poll' | 'feihua' | 'draw') => {
+    setActivityTargetId(null);
+    setActivityKind(kind);
+  };
+  const openDockGame = (kind: GameDockKind, id?: string) => {
+    setActivityTargetId(id ?? null);
+    setActivityKind(kind);
+  };
   // 接龙进度信号：别人答题时后端会推 chain_update，面板据此立刻刷新读音
   const [chainTick, setChainTick] = useState(0);
   // 飞花令进度信号：feihua_update 推送后让面板重拉诗句流与榜单
@@ -1593,7 +1603,7 @@ export const Chat: React.FC<Props> = ({
     setMemberAction(null);
     setBadgeList([]);
     setShowCheckinConfig(false);
-    setActivityKind(null);
+    setActivityKind(null); setActivityTargetId(null);
     setLoadingGroupHistory(false);
     setJumpingToUnread(false);
     groupPageRef.current = 0;
@@ -2920,10 +2930,10 @@ export const Chat: React.FC<Props> = ({
   const toolboxActions = [
     { key: 'mention', label: '@ 提及成员', hint: '选择群友', icon: AtSign, run: triggerMention },
     { key: 'chain', label: '成语接龙', hint: '机器人自动裁判 · 答对 +5 群经验', icon: ListOrdered, run: () => {
-      setShowToolbox(false); setActivityKind('chain');
+      setShowToolbox(false); openActivity('chain');
     } },
     { key: 'feihua', label: '飞花令', hint: '令字抢答 · 答对 +5 群经验', icon: Feather, run: () => {
-      setShowToolbox(false); setActivityKind('feihua');
+      setShowToolbox(false); openActivity('feihua');
     } },
     { key: 'dice', label: '掷骰子', hint: '掷一次按发言计 2 群经验', icon: Dices, run: () => {
       setShowToolbox(false);
@@ -2933,14 +2943,14 @@ export const Chat: React.FC<Props> = ({
         .catch((err: any) => toast.error(err?.response?.data?.detail || '掷骰子失败'));
     } },
     { key: 'draw', label: '你画我猜', hint: '群内限时猜词', icon: Pencil, run: () => {
-      setShowToolbox(false); setActivityKind('draw');
+      setShowToolbox(false); openActivity('draw');
     } },
     { key: 'lunch', label: '今天吃什么', hint: '午餐转盘 · 群共享菜盘', icon: Utensils, run: () => {
       setShowToolbox(false); setShowLunchWheel(true);
     } },
     { key: 'fortune', label: '每日求签', hint: '每天 2 次 · 每次 +2 群经验', icon: Sparkles, run: () => { void drawFortune(); } },
     { key: 'poll', label: '群投票', hint: '实时结果 · 首次投票 +2 群经验', icon: BarChart3, run: () => {
-      setShowToolbox(false); setActivityKind('poll');
+      setShowToolbox(false); openActivity('poll');
     } },
     { key: 'checkin', label: '发签到语', hint: `发送「${checkinCfg.text}」得经验`, icon: CalendarCheck, run: () => {
       setShowToolbox(false);
@@ -4678,7 +4688,7 @@ export const Chat: React.FC<Props> = ({
                                         {msg.msg_type === 'chain' && (
                                           <button
                                             type="button"
-                                            onClick={() => { setShowToolbox(false); setActivityKind('chain'); }}
+                                            onClick={() => { setShowToolbox(false); openActivity('chain'); }}
                                             className="mt-1 inline-flex items-center gap-1 px-2.5 py-1 rounded-capsule bg-wb-brand text-white text-3xs font-bold hover:brightness-110 transition-all"
                                             title="直接打开接龙面板，输入成语接龙"
                                           >
@@ -4688,7 +4698,7 @@ export const Chat: React.FC<Props> = ({
                                         {isFeihua && !isFeihuaEnd && (
                                           <button
                                             type="button"
-                                            onClick={() => { setShowToolbox(false); setActivityKind('feihua'); }}
+                                            onClick={() => { setShowToolbox(false); openActivity('feihua'); }}
                                             className="mt-1 inline-flex items-center gap-1 px-2.5 py-1 rounded-capsule bg-wb-brand text-white text-3xs font-bold hover:brightness-110 transition-all"
                                             title="打开飞花令面板，输入含令字的诗句"
                                           >
@@ -5553,6 +5563,10 @@ export const Chat: React.FC<Props> = ({
         </div>, document.body
       )}
 
+      {chatTab === 'group' && activeGroupId && (
+        <GameDock roomId={activeGroupId} onOpenGame={openDockGame} />
+      )}
+
       {activityKind && activeGroupId && (
         <GroupActivitiesModal
           roomId={activeGroupId}
@@ -5560,7 +5574,8 @@ export const Chat: React.FC<Props> = ({
           refreshKey={activityKind === 'feihua' ? feihuaTick : chainTick}
           canManage={Boolean(myGroupRole === 'owner' || myGroupRole === 'admin' || (activeGroup && (activeGroup as any).my_role === 'owner') || ['super_admin', 'admin'].includes(user?.role || ''))}
           toast={toast}
-          onClose={() => setActivityKind(null)}
+          initialGameId={activityTargetId}
+          onClose={() => { setActivityKind(null); setActivityTargetId(null); }}
           onShareToGroup={(text) => { void handleSendMessage(undefined, text); }}
         />
       )}

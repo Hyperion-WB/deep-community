@@ -4,6 +4,7 @@ import { Modal } from './Modal';
 import { useToast } from './Toast';
 import { apiClient } from '../api/client';
 import { emitCollectionChanged } from '../utils/collection';
+import { CustomDropdown } from './CustomDropdown';
 
 interface Folder {
   name: string;
@@ -105,16 +106,15 @@ export const CollectionFolderManager: React.FC<{ open: boolean; onClose: () => v
               {mergeFrom === f.name && (
                 <div className="flex items-center gap-1.5">
                   <span className="text-3xs text-wb-text-muted shrink-0">合并到</span>
-                  <select
+                  <CustomDropdown
+                    ariaLabel="合并目标收藏夹"
+                    size="xs"
                     value={mergeTo}
-                    onChange={e => setMergeTo(e.target.value)}
-                    aria-label="合并目标收藏夹"
-                    className="min-w-0 flex-1 px-2 py-1.5 rounded-lg bg-wb-bg-subtle border border-wb-border-subtle text-2xs outline-none"
-                  >
-                    {folders.filter(x => x.name !== f.name).map(x => (
-                      <option key={x.name} value={x.name}>{x.name}</option>
-                    ))}
-                  </select>
+                    className="min-w-0 flex-1"
+                    triggerClassName="w-full"
+                    options={folders.filter(x => x.name !== f.name).map(x => ({ value: x.name, label: x.name }))}
+                    onChange={(value) => setMergeTo(String(value))}
+                  />
                   <button type="button" disabled={busy} onClick={() => void merge()} className="px-2 py-1.5 rounded-lg bg-wb-text-primary text-wb-bg-page text-2xs font-semibold">合并</button>
                   <button type="button" onClick={() => setMergeFrom(null)} className="p-1.5 rounded-lg bg-wb-bg-subtle border border-wb-border-subtle"><X className="w-3 h-3" /></button>
                 </div>
