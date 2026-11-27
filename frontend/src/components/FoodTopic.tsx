@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { ArrowLeft, CalendarDays, Camera, ChevronLeft, ChevronRight, Heart, ImagePlus, MessageCircle, Plus, Trash2, X } from 'lucide-react';
 import { apiClient, UPLOAD_TIMEOUT } from '../api/client';
 import { UserAvatar } from './UserAvatar';
+import { renderPlainTextLinks } from './ExternalLinkModal';
 import { useToast } from './Toast';
 import { useConfirm } from './ConfirmModal';
 import type { UserProfile } from '../types';
@@ -386,7 +387,7 @@ export const FoodTopic: React.FC<Props> = ({ onClose, user, embedded = false }) 
                   <button type="button" onClick={() => setDetail(card)} className="block w-full text-left">
                     <p title={card.content || '今天也要好好吃饭'}
                       className="text-xs text-wb-text-primary line-clamp-3 break-words">
-                      {card.content || '今天也要好好吃饭'}
+                      {renderPlainTextLinks(card.content || '今天也要好好吃饭', (v) => v)}
                     </p>
                   </button>
                   <div className="flex items-center gap-1.5 pt-0.5">
@@ -722,7 +723,9 @@ const CardDetail: React.FC<{
             ))}
             <span className="text-3xs text-wb-text-muted">{MEALS.find((m) => m.key === card.meal_type)?.label || ''}</span>
           </div>
-          <p className="text-xs text-wb-text-primary whitespace-pre-wrap leading-relaxed">{card.content}</p>
+          <p className="text-xs text-wb-text-primary whitespace-pre-wrap leading-relaxed">
+            {renderPlainTextLinks(card.content, (v) => v)}
+          </p>
           <div className="flex items-center gap-2 pt-1">
             <button type="button" onClick={onToggleLike}
               className={`inline-flex items-center gap-1 h-7 px-2.5 rounded-capsule text-2xs font-semibold ${
@@ -835,7 +838,7 @@ const CardDetail: React.FC<{
                               depth > 0 ? 'line-clamp-4' : 'line-clamp-6'
                             }`}>
                             {c.emoji_key && <FoodEmoji name={c.emoji_key} size={16} fallback="" />}
-                            {c.content}
+                            {renderPlainTextLinks(c.content, (v) => v)}
                           </p>
                         )}
                         {kids.length > 0 && (

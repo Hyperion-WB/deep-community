@@ -6,6 +6,7 @@ import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
 import { ArrowLeft, ArrowUp, SmilePlus, Clock, SlidersHorizontal, Tag, Heart, Eye, ShieldAlert, BarChart3, Bookmark, Share2, Edit3, Trash2, Archive, CornerDownRight, Pin, Lock, Unlock, Maximize2, Minimize2, Sparkles, ExternalLink, ChevronDown, MessageSquare, Quote, Copy, RefreshCw, ListFilter, ChevronRight, ImagePlus } from 'lucide-react';
 import { apiClient } from '../../api/client';
+import { trimUrlEnding } from '../../components/ExternalLinkModal';
 import { thumbUrl, thumbSrcSet } from '../../utils/thumb';
 import { Modal } from '../../components/Modal';
 import type { PostDetail as PostDetailType, CommentItem, PollDetail, UserProfile } from '../../types';
@@ -1744,13 +1745,14 @@ export const PostDetailPopup: React.FC<PostDetailPopupProps> = ({ postId, target
                     );
                   },
                   a({ href, children, ...props }: any) {
-                    if (href && parseGitHubRepo(href)) {
+                    const safeHref = typeof href === 'string' ? trimUrlEnding(href) : href;
+                    if (safeHref && parseGitHubRepo(safeHref)) {
                       const isStandalone = !children || String(children).includes('github.com') || String(children).trim() === '';
-                      return <GitHubRepoCard url={href} inline={!isStandalone} />;
+                      return <GitHubRepoCard url={safeHref} inline={!isStandalone} />;
                     }
                     return (
                       <a
-                        href={href}
+                        href={safeHref}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-wb-text-primary underline font-medium hover:opacity-80"
@@ -2284,13 +2286,14 @@ export const PostDetailPopup: React.FC<PostDetailPopupProps> = ({ postId, target
                         );
                       },
                       a({ href, children, ...props }: any) {
-                        if (href && parseGitHubRepo(href)) {
+                        const safeHref = typeof href === 'string' ? trimUrlEnding(href) : href;
+                        if (safeHref && parseGitHubRepo(safeHref)) {
                           const isStandalone = !children || String(children).includes('github.com') || String(children).trim() === '';
-                          return <GitHubRepoCard url={href} inline={!isStandalone} />;
+                          return <GitHubRepoCard url={safeHref} inline={!isStandalone} />;
                         }
                         return (
                           <a
-                            href={href}
+                            href={safeHref}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-wb-text-primary underline font-medium hover:opacity-80"

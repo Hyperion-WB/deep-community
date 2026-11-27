@@ -30,6 +30,11 @@ function skipWarning() {
   }
 }
 
+export const openExternalLinkDirect = (url: string) => {
+  const parsed = parseHttpUrl(trimUrlEnding(url));
+  if (parsed) window.open(parsed.href, '_blank', 'noopener,noreferrer');
+};
+
 export const promptExternalLink = (url: string, requireConfirmation = false) => {
   const parsed = parseHttpUrl(url);
   if (!parsed) return;
@@ -43,7 +48,7 @@ export const promptExternalLink = (url: string, requireConfirmation = false) => 
   }));
 };
 
-function trimUrlEnding(value: string) {
+export function trimUrlEnding(value: string) {
   const pairs = { ')': '(', ']': '[', '}': '{' } as const;
   const balance = { '(': 0, '[': 0, '{': 0 };
   for (const char of value) {
@@ -53,7 +58,7 @@ function trimUrlEnding(value: string) {
   let end = value.length;
   while (end > 0) {
     const char = value[end - 1];
-    if (/[.,!?;:']/.test(char)) end--;
+    if (/[.,!?;:'"”’…]/.test(char) || /[）】》」]/.test(char)) end--;
     else if ((char === ')' || char === ']' || char === '}') && balance[pairs[char]] < 0) {
       balance[pairs[char]]++;
       end--;
@@ -87,9 +92,10 @@ export function renderPlainTextLinks(
         type="button"
         onClick={(event) => {
           event.stopPropagation();
-          promptExternalLink(url, true);
+          openExternalLinkDirect(url);
         }}
-        className="inline cursor-pointer break-all text-left text-inherit underline underline-offset-2 hover:opacity-75"
+        title={url}
+        className="inline cursor-pointer break-all text-left text-inherit underline underline-offset-2 hover:opacity-75 select-none"
       >
         {url}
       </button>,
@@ -119,7 +125,8 @@ export const ExternalLinkModal: React.FC = () => {
     // Markdown、个人简介等现有外链仍保留站点原本的提醒偏好。
     const handleDocumentClick = (event: MouseEvent) => {
       if (!(event.target instanceof Element)) return;
-      const href = event.target.closest('a')?.getAttribute('href');
+      const rawHref = event.target.closest('a')?.getAttribute('href');
+      const href = rawHref ? trimUrlEnding(rawHref) : '';
       const url = href ? parseHttpUrl(href) : null;
       if (!href || !url || url.hostname === window.location.hostname || skipWarning()) return;
       event.preventDefault();
