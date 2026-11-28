@@ -23,6 +23,7 @@ export const QrScannerModal: React.FC<Props> = ({ onClose }) => {
   const handledRef = useRef(false);
   const [error, setError] = useState('');
   const [starting, setStarting] = useState(true);
+  const [cameraAttempt, setCameraAttempt] = useState(0);
 
   const stopCamera = useCallback(() => {
     if (scanTimerRef.current) {
@@ -38,14 +39,20 @@ export const QrScannerModal: React.FC<Props> = ({ onClose }) => {
     if (handledRef.current) return false;
     try {
       const url = new URL(text, window.location.origin);
-      if (url.origin !== window.location.origin) throw new Error('foreign');
+      const normalizeHost = (host: string) => host.toLowerCase().replace(/^www\./, '');
+      if (!/^https?:$/.test(url.protocol) || normalizeHost(url.hostname) !== normalizeHost(window.location.hostname)) {
+        throw new Error('foreign');
+      }
       if (!url.searchParams.has('qr_login')) throw new Error('not-login');
       handledRef.current = true;
       stopCamera();
-      window.location.assign(url.toString());
+      // 即使二维码里写的是 www 域名，也统一回到当前安全源，避免 origin 不一致。
+      const target = new URL('/', window.location.origin);
+      target.search = url.search;
+      window.location.assign(target.toString());
       return true;
     } catch {
-      setError('这不是本站的登录二维码，请对准电脑端登录窗口里的二维码。');
+      setError(`没有识别到本站登录二维码。识别内容：${text.slice(0, 80)}`);
       return false;
     }
   }, [stopCamera]);
@@ -66,9 +73,13 @@ export const QrScannerModal: React.FC<Props> = ({ onClose }) => {
       const context = canvas.getContext('2d', { willReadFrequently: true });
       if (context) {
         context.drawImage(video, 0, 0, width, height);
-        const image = context.getImageData(0, 0, width, height);
-        const result = jsQR(image.data, width, height, { inversionAttempts: 'attemptBoth' });
-        if (result?.data && handleResult(result.data)) return;
+        try {
+          const image = context.getImageData(0, 0, width, height);
+          const result = jsQR(image.data, width, height, { inversionAttempts: 'attemptBoth' });
+          if (result?.data && handleResult(result.data)) return;
+        } catch {
+          // 单帧解析失败不能中断整个扫描循环
+        }
       }
     }
     scanTimerRef.current = window.setTimeout(scanFrame, 220);
@@ -77,6 +88,11 @@ export const QrScannerModal: React.FC<Props> = ({ onClose }) => {
   useEffect(() => {
     let cancelled = false;
     const start = async () => {
+      if (!window.isSecureContext) {
+        setError('当前页面不是 HTTPS 安全环境，浏览器不会开放摄像头，请用 https 访问或从相册选择二维码。');
+        setStarting(false);
+        return;
+      }
       if (!navigator.mediaDevices?.getUserMedia) {
         setError('当前浏览器不支持摄像头扫码，可以从相册选择二维码图片。');
         setStarting(false);
@@ -95,7 +111,11 @@ export const QrScannerModal: React.FC<Props> = ({ onClose }) => {
         const video = videoRef.current;
         if (video) {
           video.srcObject = stream;
-          await video.play().catch(() => undefined);
+          try {
+            await video.play();
+          } catch {
+            setError('摄像头已授权，但浏览器无法播放视频。请点「重新打开摄像头」或使用相册识别。');
+          }
         }
         setStarting(false);
         scanTimerRef.current = window.setTimeout(scanFrame, 300);
@@ -111,7 +131,7 @@ export const QrScannerModal: React.FC<Props> = ({ onClose }) => {
       cancelled = true;
       stopCamera();
     };
-  }, [scanFrame, stopCamera]);
+  }, [cameraAttempt, scanFrame, stopCamera]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -138,10 +158,14 @@ export const QrScannerModal: React.FC<Props> = ({ onClose }) => {
           return;
         }
         context.drawImage(image, 0, 0, canvas.width, canvas.height);
-        const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
-        const result = jsQR(pixels.data, pixels.width, pixels.height, { inversionAttempts: 'attemptBoth' });
-        if (result?.data) handleResult(result.data);
-        else setError('没有识别到二维码，请换一张更清晰的图片。');
+        try {
+          const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
+          const result = jsQR(pixels.data, pixels.width, pixels.height, { inversionAttempts: 'attemptBoth' });
+          if (result?.data) handleResult(result.data);
+          else setError('图片里没有识别到二维码。请截取二维码本身，避免整屏截图/压缩过度。');
+        } catch {
+          setError('图片解析失败，请换一张二维码截图。');
+        }
       };
       image.onerror = () => setError('图片读取失败，请重试。');
       image.src = String(reader.result || '');
@@ -164,7 +188,7 @@ export const QrScannerModal: React.FC<Props> = ({ onClose }) => {
 
         <div className="p-4">
           <div className="relative aspect-square w-full overflow-hidden rounded-2xl bg-black">
-            <video ref={videoRef} playsInline muted className="h-full w-full object-cover" />
+            <video ref={videoRef} playsInline autoPlay muted className="h-full w-full object-cover" />
             <canvas ref={canvasRef} className="hidden" />
             <div className="pointer-events-none absolute inset-0 grid place-items-center">
               <div className="relative h-[62%] w-[62%] rounded-2xl border border-white/70 shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]">
@@ -186,6 +210,12 @@ export const QrScannerModal: React.FC<Props> = ({ onClose }) => {
           </p>
           {error && <p role="alert" className="mt-2 rounded-xl bg-wb-danger/10 px-3 py-2 text-xs text-wb-danger">{error}</p>}
 
+          {error && (
+            <button type="button" onClick={() => { setError(''); setStarting(true); setCameraAttempt((n) => n + 1); }}
+              className="mt-2 flex h-9 w-full items-center justify-center gap-2 rounded-xl border border-wb-border-subtle bg-wb-bg-subtle text-xs font-semibold text-wb-text-secondary hover:text-wb-text-primary">
+              <Camera className="h-4 w-4" />重新打开摄像头
+            </button>
+          )}
           <label className="mt-3 flex h-10 w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-wb-border-subtle bg-wb-bg-subtle text-xs font-semibold text-wb-text-secondary hover:text-wb-text-primary">
             <ImagePlus className="h-4 w-4" />从相册选择二维码
             <input type="file" accept="image/*" className="hidden"
